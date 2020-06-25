@@ -1,7 +1,7 @@
 decisionMaker:
-  stopLoss: .25
-  profitMax: .50
-  
+  stopLoss: .25 # set stop loss order if price goes below 25% of original price
+  profitMax: .50 # sell order if price goes above 50% above original price
+
 macdCalculator:
   macd: # values used to calculate macd
     12-period-ema: 12
@@ -9,4 +9,4 @@ macdCalculator:
     9-period-ema: 9
   trend: # values used to calculate trend line
     trend-ema-period: 200
-  period: P5M #ISO 8601 format to describe period to work
+  period: P5M #ISO 8601 format to describe period to work - default is 5 minutes

@@ -4,6 +4,10 @@
 *.dll
 *.so
 *.dylib
+*_bin
+
+# coinbase auth details that should definitely not be in git :) 
+coinbaseAuth.yml
 
 # Test binary, built with `go test -c`
 *.test

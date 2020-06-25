@@ -1,0 +1,12 @@
+decisionMaker:
+  stopLoss: .25
+  profitMax: .50
+  
+macdCalculator:
+  macd: # values used to calculate macd
+    12-period-ema: 12
+    26-period-ema: 26
+    9-period-ema: 9
+  trend: # values used to calculate trend line
+    trend-ema-period: 200
+  period: P5M #ISO 8601 format to describe period to work

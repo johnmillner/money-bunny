@@ -18,7 +18,7 @@ secret: test
 ```
 you can retrieve these details by ...todo
 
-# configs/config.yml
+## configs/config.yml
 configuration file that details stoploss percentage, profit target, macd and trend settings, etc.
 ```yaml
 decisionMaker:
@@ -34,3 +34,6 @@ macdCalculator:
     trend-ema-period: 200
   period: P5M #ISO 8601 format to describe period to work - default is 5 minutes
   ```
+
+# To Use
+... todo

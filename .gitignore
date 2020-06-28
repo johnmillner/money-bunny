@@ -6,8 +6,8 @@
 *.dylib
 *_bin
 
-# coinbase auth details that should definitely not be in git :) 
-coinbaseAuth.yml
+# coinbase auth details that should definitely not be in git :)
+coinbase.yaml
 
 # Test binary, built with `go test -c`
 *.test

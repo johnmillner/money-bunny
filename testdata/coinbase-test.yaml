@@ -1,0 +1,3 @@
+auth:
+  key: testKey
+  secret: testSecret

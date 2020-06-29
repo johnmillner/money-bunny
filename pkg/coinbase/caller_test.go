@@ -5,7 +5,11 @@ import (
 )
 
 func TestGetCredentials(t *testing.T) {
-	coinbase := getCredentials("../../testdata/coinbase-test.yaml")
+	coinbase, err := getCoinbase()
+
+	if err != nil {
+		t.Errorf("failed due to %s", err)
+	}
 	if "testKey" != coinbase.Auth.Key {
 		t.Errorf("%s was not the expected key", coinbase.Auth.Key)
 	}

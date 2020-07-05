@@ -7,7 +7,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// GetYamlConfig deserilaized yaml files into given object
+// GetYamlConfig deserialize yaml files into given object
 func GetYamlConfig(path string, out interface{}) error {
 
 	configFile, err := ioutil.ReadFile(path)

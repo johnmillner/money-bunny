@@ -1,4 +1,4 @@
-package main
+package moniter
 
 import (
 	"github.com/gorilla/websocket"
@@ -73,7 +73,8 @@ func readTickers(connection *websocket.Conn) {
 
 }
 
-func main() {
+// Manager is todo - and will have a better name along with better functionality - just prototyping
+func Manager() {
 
 	coinbaseConfig := Coinbase{}
 	err := config.GetConfig("configs\\coinbase.yaml", &coinbaseConfig)

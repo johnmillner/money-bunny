@@ -1,9 +1,7 @@
 package main
 
-import (
-	"fmt"
-)
+import "github.com/johnmillner/robo-macd/internal/moniter"
 
-func asdf() {
-	fmt.Println("Hello, world.")
+func main() {
+	moniter.Manager()
 }

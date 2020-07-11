@@ -11,7 +11,7 @@ type Test struct {
 
 func TestGetYamlConfig(t *testing.T) {
 	test := Test{}
-	err := GetYamlConfig("../../testdata/test.yaml", &test)
+	err := GetConfig("../../testdata/test.yaml", &test)
 
 	if err != nil {
 		t.Errorf("failed due to %s", err)
@@ -26,7 +26,7 @@ func TestGetYamlConfig(t *testing.T) {
 
 func TestGetYamlConfigNoFile(t *testing.T) {
 	test := Test{}
-	err := GetYamlConfig("../../testdata/does-not-exsist.yaml", &test)
+	err := GetConfig("../../testdata/does-not-exsist.yaml", &test)
 
 	if err == nil || test != (Test{}) {
 		t.Errorf("should not be able to load this file")
@@ -35,7 +35,7 @@ func TestGetYamlConfigNoFile(t *testing.T) {
 
 func TestGetYamlConfigBadFile(t *testing.T) {
 	test := Test{}
-	err := GetYamlConfig("../../testdata/bad-file.yaml", &test)
+	err := GetConfig("../../testdata/bad-file.yaml", &test)
 
 	if err == nil || test != (Test{}) {
 		t.Log(err)

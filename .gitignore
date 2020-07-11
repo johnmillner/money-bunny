@@ -7,7 +7,7 @@
 *_bin
 
 # coinbase auth details that should definitely not be in git :)
-#coinbase.yaml
+coinbase.yaml
 
 # Test binary, built with `go test -c`
 *.test

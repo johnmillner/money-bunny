@@ -2,7 +2,8 @@ auth:
   key: testKey
   secret: testSecret
 price:
-  websocket : "wss://ws-feed.pro.coinbase.com"
+  live-price-ws: "wss://ws-feed.pro.coinbase.com"
+  historical-price-https: "https://api.pro.coinbase.com"
   products :
     - BTC-USD
     - ETH-USD

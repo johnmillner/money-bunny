@@ -1,10 +1,10 @@
 package coinbase
 
 import (
-	"log"
+	"github.com/johnmillner/robo-macd/internal/config"
 )
 
-// Coinbase contains coinbase specific settings and authnetication
+// Coinbase contains coinbase specific settings and authentication
 type Coinbase struct {
 	Auth struct {
 		Key    string
@@ -13,8 +13,7 @@ type Coinbase struct {
 }
 
 func getCoinbase() (Coinbase, error) {
-	log.Println("test")
 	coinbase := Coinbase{}
-	err := reader.GetYamlConfig("coinbase.yaml", &coinbase)
+	err := config.GetConfig("../configs/coinbase.yaml", &coinbase)
 	return coinbase, err
 }

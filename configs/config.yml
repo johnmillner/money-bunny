@@ -9,4 +9,4 @@ macdCalculator:
     9-period-ema: 9
   trend: # values used to calculate trend line
     trend-ema-period: 200
-  period: P5M #ISO 8601 format to describe period to work - default is 5 minutes
+  period: 60 # period in seconds - can only be 60(1m), 300(5m), 900(15), 3600(1h), 21600(6h), 86400(1d)

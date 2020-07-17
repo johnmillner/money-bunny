@@ -1,3 +1,5 @@
+![Go](https://github.com/johnmillner/robo-macd/workflows/Go/badge.svg)
+
 # robo-macd
 Simple MACD based Robo-Advisor
 

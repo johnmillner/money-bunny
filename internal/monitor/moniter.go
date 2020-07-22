@@ -1,16 +1,14 @@
 package monitor
 
 import (
-	"container/ring"
-	"github.com/johnmillner/robo-macd/internal/config"
 	"log"
 	"time"
 )
 
 type priceMonitor struct {
 	Product     string
-	Granularity int
-	prices      ring.Ring
+	Granularity time.Duration
+	prices      RasterStack
 	channel     chan []Ticker
 	coinbase    Coinbase
 }
@@ -29,30 +27,34 @@ type Coinbase struct {
 	}
 }
 
-func (monitor *priceMonitor) updatePrice(ticker Ticker) {
-	log.Printf("updating price with ticker %v", ticker)
+// UpdatePrice is responsible for maintaining the priceMonitor's Price Rasterstack
+// it does this through ensuring that if the new price is more than
+func (monitor *priceMonitor) UpdatePrice(ticker Ticker) {
+	peek, err := monitor.prices.Peek(1)
 
-	//todo intelligently add based on timestamp and granularity
-	//monitor.prices.
-	//monitor.channel <- monitor.prices
-}
-
-func NewMonitor(product string, granularity int, channel *chan []Ticker) *priceMonitor {
-	coinbase := Coinbase{}
-	err := config.GetConfig("configs\\coinbase.yaml", &coinbase)
-	if err != nil {
-		log.Fatal(err)
+	if err == nil && ticker.Time.Before(peek.Time.Add(monitor.Granularity)) {
+		return
 	}
 
-	m := priceMonitor{
+	ticker.Time = ticker.Time.Round(monitor.Granularity)
+	monitor.prices.Push(ticker)
+	monitor.channel <- monitor.prices.Raster()
+}
+
+func NewMonitor(product string, granularity time.Duration, capacity int, channel *chan []Ticker, coinbase Coinbase) *priceMonitor {
+	return &priceMonitor{
 		Product:     product,
 		Granularity: granularity,
 		channel:     *channel,
 		coinbase:    coinbase,
+		prices:      NewRasterStack(capacity),
 	}
+}
 
-	m.PopulateHistorical()
-	go m.PopulateLive()
-
-	return &m
+func (monitor *priceMonitor) Initialize() {
+	err := monitor.PopulateHistorical()
+	if err != nil {
+		log.Printf("%v", err)
+	}
+	go monitor.PopulateLive()
 }

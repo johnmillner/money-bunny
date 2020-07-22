@@ -3,6 +3,7 @@ package monitor
 import (
 	"github.com/gorilla/websocket"
 	"log"
+	"reflect"
 )
 
 type Channel struct {
@@ -10,7 +11,7 @@ type Channel struct {
 	ProductIds []string `json:"product_ids"`
 }
 
-type Subscribe struct {
+type Definition struct {
 	Type     string    `json:"type"`
 	Channels []Channel `json:"channels"`
 }
@@ -25,7 +26,7 @@ func connectToCoinbase(coinbase Coinbase) (*websocket.Conn, error) {
 }
 
 func subscribeToProductTicker(connection *websocket.Conn, productId string) error {
-	subscribe := Subscribe{
+	subscribe := Definition{
 		Type: "subscribe",
 		Channels: []Channel{
 			{
@@ -35,7 +36,26 @@ func subscribeToProductTicker(connection *websocket.Conn, productId string) erro
 		},
 	}
 
-	return connection.WriteJSON(subscribe)
+	subscriptionConfirmation := Definition{}
+	expectedConfirmation := Definition{
+		Type: "subscriptions",
+		Channels: []Channel{
+			{
+				Name:       "ticker",
+				ProductIds: []string{productId},
+			},
+		},
+	}
+
+	err := connection.WriteJSON(subscribe)
+
+	for !reflect.DeepEqual(subscriptionConfirmation, expectedConfirmation) {
+		err = connection.ReadJSON(&subscriptionConfirmation)
+		log.Printf("waiting for confirmation")
+	}
+	log.Printf("subscription confirmed %v", subscriptionConfirmation)
+
+	return err
 }
 
 func readTickerSubscription(connection *websocket.Conn, m *priceMonitor) {
@@ -48,7 +68,7 @@ func readTickerSubscription(connection *websocket.Conn, m *priceMonitor) {
 			break
 		}
 
-		m.updatePrice(ticker)
+		m.UpdatePrice(ticker)
 	}
 
 	log.Printf("closing")

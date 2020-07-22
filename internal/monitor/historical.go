@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -23,20 +24,26 @@ func NewTickerFromCandle(raw []float64, productId string) Ticker {
 	return Ticker{
 		ProductId: productId,
 		Price:     raw[4],
-		Time:      time.Unix(int64(raw[0]), 0),
+		Time:      time.Unix(int64(raw[0]), 0).UTC(),
 	}
 }
 
-func (monitor *priceMonitor) PopulateHistorical() {
-	log.Printf("gathering historical data for granularity %d seconds", monitor.Granularity)
+func (monitor *priceMonitor) PopulateHistorical() error {
+	log.Printf("gathering historical data for granularity %f seconds", monitor.Granularity.Seconds())
 	historicalUrl, err := url.Parse(fmt.Sprintf("%s/products/%s/candles", monitor.coinbase.Price.HistoricalPriceHttps, monitor.Product))
 	if err != nil {
-		log.Fatal(err)
+		return errors.New(fmt.Sprintf("could not populate historical due to %s", err))
 	}
-	historicalUrl.Query().Add("granularity", string(monitor.Granularity))
+
+	queries := historicalUrl.Query()
+	queries.Set("granularity", fmt.Sprintf("%d", int(monitor.Granularity.Seconds())))
+	queries.Set("start", time.Now().Add(-1*monitor.Granularity*time.Duration(monitor.prices.capacity)).In(time.UTC).String())
+	queries.Set("end", time.Now().Add(time.Minute).In(time.UTC).String())
+	historicalUrl.RawQuery = queries.Encode()
+
 	response, err := http.Get(historicalUrl.String())
 	if err != nil {
-		log.Fatal(err)
+		return errors.New(fmt.Sprintf("could not populate historical due to %s", err))
 	}
 
 	body, err := ioutil.ReadAll(response.Body)
@@ -47,16 +54,17 @@ func (monitor *priceMonitor) PopulateHistorical() {
 	rawCandles := make([][]float64, 0)
 	err = json.Unmarshal(body, &rawCandles)
 	if err != nil {
-		log.Fatal(err)
+		return errors.New(fmt.Sprintf("could not populate historical due to %s", err))
 	}
 
 	reverseArray(rawCandles)
 
 	for _, raw := range rawCandles {
-		monitor.updatePrice(NewTickerFromCandle(raw, monitor.Product))
+		monitor.UpdatePrice(NewTickerFromCandle(raw, monitor.Product))
 	}
 
 	log.Printf("finished historical")
+	return nil
 }
 
 func reverseArray(a [][]float64) {

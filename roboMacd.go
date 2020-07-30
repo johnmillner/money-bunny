@@ -1,15 +1,15 @@
 package main
 
 import (
-	"github.com/johnmillner/robo-macd/internal/config"
 	"github.com/johnmillner/robo-macd/internal/monitor"
+	"github.com/johnmillner/robo-macd/internal/yaml"
 	"log"
 	"time"
 )
 
 func main() {
 	coinbase := monitor.Coinbase{}
-	err := config.GetConfig("configs\\coinbase.yaml", &coinbase)
+	err := yaml.ParseYaml("configs\\coinbase.yaml", &coinbase)
 	if err != nil {
 		log.Fatal(err)
 	}

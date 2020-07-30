@@ -1,4 +1,4 @@
-package config
+package yaml
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 )
 
 // getConfig deserialize yaml files into given object
-func GetConfig(path string, out interface{}) error {
+func ParseYaml(path string, out interface{}) error {
 
 	configFile, err := ioutil.ReadFile(path)
 	if err != nil {

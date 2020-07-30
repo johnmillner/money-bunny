@@ -3,7 +3,7 @@ auth:
   secret: testSecret
 price:
   live-price-ws: "wss://ws-feed.pro.coinbase.com"
-  historical-price-https: "https://api.pro.coinbase.com"
+  historical-price-https: "https://api.pro.coinbase.com/products/%s/candles"
   products:
     - BTC-USD
     - ETH-USD

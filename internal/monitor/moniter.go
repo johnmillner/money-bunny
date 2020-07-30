@@ -28,12 +28,25 @@ type Coinbase struct {
 }
 
 // UpdatePrice is responsible for maintaining the priceMonitor's Price Rasterstack
-// it does this through ensuring that if the new price is more than
+// there are three scenarios that can happen
+// - the new ticker is before the next threshold - do nothing
+// - the new ticker is between the next threshold and the next next threshold - add
+// - the new ticker is after the next next thresh hold - repeat the prior call to fill in the gap
 func (monitor *priceMonitor) UpdatePrice(ticker Ticker) {
 	peek, err := monitor.prices.Peek(1)
 
 	if err == nil && ticker.Time.Before(peek.Time.Add(monitor.Granularity)) {
 		return
+	}
+
+	// todo fix this logic for filling in gaps during live price
+	if err == nil && ticker.Time.After(peek.Time.Add(monitor.Granularity*2)) {
+		midPrice := Ticker{
+			ProductId: peek.ProductId,
+			Price:     peek.Price,
+			Time:      ticker.Time.Add(-1 * monitor.Granularity),
+		}
+		monitor.UpdatePrice(midPrice)
 	}
 
 	ticker.Time = ticker.Time.Round(monitor.Granularity)

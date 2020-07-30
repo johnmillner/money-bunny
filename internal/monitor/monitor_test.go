@@ -1,6 +1,8 @@
 package monitor
 
 import (
+	"github.com/johnmillner/robo-macd/internal/yaml"
+	"log"
 	"reflect"
 	"testing"
 	"time"
@@ -31,6 +33,16 @@ func TestPriceMonitor_UpdatePrice(t *testing.T) {
 		Price:     4,
 		Time:      time.Now().Add(time.Minute * 2).Round(time.Minute).UTC(),
 	}
+	t45 := Ticker{
+		ProductId: "BTC-USD",
+		Price:     4,
+		Time:      time.Now().Add(time.Minute * 4).Round(time.Minute).UTC(),
+	}
+	t5 := Ticker{
+		ProductId: "BTC-USD",
+		Price:     6,
+		Time:      time.Now().Add(time.Minute * 5).Round(time.Minute).UTC(),
+	}
 
 	monitor.UpdatePrice(t1)
 	monitor.UpdatePrice(t2)
@@ -45,4 +57,19 @@ func TestPriceMonitor_UpdatePrice(t *testing.T) {
 	if !reflect.DeepEqual(monitor.prices.Raster(), []Ticker{t2, t4}) {
 		t.Fatalf("expected %v, got %v", []Ticker{t2, t4}, monitor.prices.Raster())
 	}
+	monitor.UpdatePrice(t5)
+	if !reflect.DeepEqual(monitor.prices.Raster(), []Ticker{t45, t5}) {
+		t.Fatalf("expected %v, got %v", []Ticker{t45, t5}, monitor.prices.Raster())
+	}
+}
+
+func TestPriceMonitor_Initialize(t *testing.T) {
+	coinbase := Coinbase{}
+	err := yaml.ParseYaml("../../configs\\coinbase.yaml", &coinbase)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	channel := make(chan []Ticker, 1000)
+	NewMonitor("BTC-USD", 60*time.Second, 2, &channel, coinbase).Initialize()
 }

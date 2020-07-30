@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+var TimeFormat = time.RFC3339 //"2006-01-02T15:04:05.0700Z"
+
 type Candle struct {
 	Time   time.Time
 	Low    float64
@@ -28,36 +30,56 @@ func NewTickerFromCandle(raw []float64, productId string) Ticker {
 	}
 }
 
-func (monitor *priceMonitor) PopulateHistorical() error {
-	log.Printf("gathering historical data for granularity %f seconds", monitor.Granularity.Seconds())
-	historicalUrl, err := url.Parse(fmt.Sprintf("%s/products/%s/candles", monitor.coinbase.Price.HistoricalPriceHttps, monitor.Product))
+func CreateCandleQuery(monitor *priceMonitor) (*url.URL, error) {
+	historicalUrl, err := url.Parse(fmt.Sprintf(monitor.coinbase.Price.HistoricalPriceHttps, monitor.Product))
 	if err != nil {
-		return errors.New(fmt.Sprintf("could not populate historical due to %s", err))
+		return nil, errors.New(fmt.Sprintf("could not populate historical due to %s", err))
 	}
 
 	queries := historicalUrl.Query()
 	queries.Set("granularity", fmt.Sprintf("%d", int(monitor.Granularity.Seconds())))
-	queries.Set("start", time.Now().Add(-1*monitor.Granularity*time.Duration(monitor.prices.capacity)).In(time.UTC).String())
-	queries.Set("end", time.Now().Add(time.Minute).In(time.UTC).String())
+	queries.Set("start", time.Now().Add(-1*monitor.Granularity*time.Duration(monitor.prices.capacity+1)).In(time.UTC).Format(TimeFormat))
+	queries.Set("end", time.Now().Add(time.Minute).In(time.UTC).Format(TimeFormat))
 	historicalUrl.RawQuery = queries.Encode()
 
-	response, err := http.Get(historicalUrl.String())
+	return historicalUrl, nil
+}
+
+func gatherRawCandles(historicalUrl string) ([][]float64, error) {
+
+	response, err := http.Get(historicalUrl)
 	if err != nil {
-		return errors.New(fmt.Sprintf("could not populate historical due to %s", err))
+		return nil, errors.New(fmt.Sprintf("unsuccesful call to historical due to %s with url %s", err, historicalUrl))
 	}
 
 	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	rawCandles := make([][]float64, 0)
 	err = json.Unmarshal(body, &rawCandles)
 	if err != nil {
-		return errors.New(fmt.Sprintf("could not populate historical due to %s", err))
+		return nil, errors.New(fmt.Sprintf("could not populate historical due to %s", err))
 	}
 
 	reverseArray(rawCandles)
+
+	return rawCandles, nil
+}
+
+func (monitor *priceMonitor) PopulateHistorical() error {
+	log.Printf("gathering historical data for granularity %d seconds", int(monitor.Granularity.Seconds()))
+
+	historicalUrl, err := CreateCandleQuery(monitor)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	rawCandles, err := gatherRawCandles(historicalUrl.String())
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	for _, raw := range rawCandles {
 		monitor.UpdatePrice(NewTickerFromCandle(raw, monitor.Product))

@@ -14,17 +14,14 @@ func TestPriceMonitor_PopulateLive(t *testing.T) {
 	}
 
 	channel := make(chan []Ticker, 1000)
-	monitor := NewMonitor("BTC-USD", 5*time.Second, 200, &channel, coinbase)
+	monitor := NewMonitor("BTC-USD", 1*time.Second, 200, &channel, coinbase)
 
 	go monitor.PopulateLive()
 
 	counter := 0
 	for tickers := range channel {
 		counter++
-		t.Logf("%v", tickers)
-
 		for i, ticker := range tickers {
-			t.Logf("checking ticker %v", ticker)
 			if ticker.ProductId != "BTC-USD" {
 				t.Fatalf("tickerId was expected to be BTC-USD and was %s", ticker.ProductId)
 			}
@@ -34,7 +31,7 @@ func TestPriceMonitor_PopulateLive(t *testing.T) {
 			}
 		}
 
-		if counter >= 5 {
+		if counter >= 30 {
 			break
 		}
 	}

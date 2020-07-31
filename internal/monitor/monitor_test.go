@@ -9,7 +9,7 @@ import (
 )
 
 func TestPriceMonitor_UpdatePrice(t *testing.T) {
-	channel := make(chan []Ticker, 5)
+	channel := make(chan []Ticker, 100)
 
 	monitor := NewMonitor("BTC-USD", 60*time.Second, 2, &channel, Coinbase{})
 
@@ -43,6 +43,16 @@ func TestPriceMonitor_UpdatePrice(t *testing.T) {
 		Price:     6,
 		Time:      time.Now().Add(time.Minute * 5).Round(time.Minute).UTC(),
 	}
+	t56 := Ticker{
+		ProductId: "BTC-USD",
+		Price:     6,
+		Time:      time.Now().Add(time.Minute * 6).Round(time.Minute).UTC(),
+	}
+	t6 := Ticker{
+		ProductId: "BTC-USD",
+		Price:     7,
+		Time:      time.Now().Add(time.Minute * 7).Round(time.Minute).UTC(),
+	}
 
 	monitor.UpdatePrice(t1)
 	monitor.UpdatePrice(t2)
@@ -60,6 +70,10 @@ func TestPriceMonitor_UpdatePrice(t *testing.T) {
 	monitor.UpdatePrice(t5)
 	if !reflect.DeepEqual(monitor.prices.Raster(), []Ticker{t45, t5}) {
 		t.Fatalf("expected %v, got %v", []Ticker{t45, t5}, monitor.prices.Raster())
+	}
+	monitor.UpdatePrice(t6)
+	if !reflect.DeepEqual(monitor.prices.Raster(), []Ticker{t56, t6}) {
+		t.Fatalf("expected %v, got %v", []Ticker{t56, t6}, monitor.prices.Raster())
 	}
 }
 

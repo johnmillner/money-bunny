@@ -27,29 +27,27 @@ type Coinbase struct {
 	}
 }
 
-// UpdatePrice is responsible for maintaining the priceMonitor's Price Rasterstack
-// there are three scenarios that can happen
-// - the new ticker is before the next threshold - do nothing
-// - the new ticker is between the next threshold and the next next threshold - add
-// - the new ticker is after the next next thresh hold - repeat the prior call to fill in the gap
+// UpdatePrice is responsible for maintaining the priceMonitor's Prices
 func (monitor *priceMonitor) UpdatePrice(ticker Ticker) {
 	peek, err := monitor.prices.Peek(1)
 
-	if err == nil && ticker.Time.Before(peek.Time.Add(monitor.Granularity)) {
+	standardizedTime := ticker.Time.Add(-1 * monitor.Granularity / 2).Add(time.Nanosecond).Round(monitor.Granularity)
+	//skip time if ticker occurs before the threshold
+	if err == nil && standardizedTime.Before(peek.Time.Add(monitor.Granularity)) {
 		return
 	}
 
-	// todo fix this logic for filling in gaps during live price
-	if err == nil && ticker.Time.After(peek.Time.Add(monitor.Granularity*2)) {
-		midPrice := Ticker{
+	//recursively back fill prices if a gap is noticed in data is noticed
+	if err == nil && !standardizedTime.Before(peek.Time.Add(2*monitor.Granularity)) {
+		monitor.UpdatePrice(Ticker{
 			ProductId: peek.ProductId,
 			Price:     peek.Price,
-			Time:      ticker.Time.Add(-1 * monitor.Granularity),
-		}
-		monitor.UpdatePrice(midPrice)
+			Time:      standardizedTime.Add(-1 * monitor.Granularity),
+		})
 	}
 
-	ticker.Time = ticker.Time.Round(monitor.Granularity)
+	// add this price - rounded - to the monitor
+	ticker.Time = standardizedTime
 	monitor.prices.Push(ticker)
 	monitor.channel <- monitor.prices.Raster()
 }

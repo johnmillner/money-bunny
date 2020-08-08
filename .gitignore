@@ -9,7 +9,7 @@
 # coinbase auth details that should definitely not be in git :) 
 coinbaseAuth.yml
 
-# Test binary, built with `go test -c`
+# Test binary, built with `go example -c`
 *.test
 
 # Output of the go coverage tool, specifically when used with LiteIDE

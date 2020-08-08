@@ -1,3 +1,3 @@
-module johntm.com/robo/macd
+module github.com/johnmillner/robo-macd
 
 go 1.14

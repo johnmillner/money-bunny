@@ -1,9 +1,7 @@
 package main
 
-import (
-	"fmt"
-)
+import "github.com/johnmillner/robo-macd/pkg/example"
 
 func main() {
-	fmt.Println("Hello, world.")
+	example.PrintTest()
 }

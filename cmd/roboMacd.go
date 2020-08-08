@@ -9,7 +9,7 @@ import (
 
 func main() {
 	coinbase := monitor.Coinbase{}
-	err := yaml.ParseYaml("configs\\coinbase.yaml", &coinbase)
+	err := yaml.ParseYaml("configs/coinbase.yaml", &coinbase)
 	if err != nil {
 		log.Fatal(err)
 	}

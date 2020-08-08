@@ -171,12 +171,12 @@ func TestRasterizingStack_Peek(t *testing.T) {
 
 	r := NewRasterStack(2)
 
-	result, err := r.Peek(1)
+	result, err := r.Peek()
 	if err == nil {
 		t.Fatal("should receive an error when peeking at empty stack")
 	}
 	r.Push(t1)
-	result, err = r.Peek(1)
+	result, err = r.Peek()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestRasterizingStack_Peek(t *testing.T) {
 	}
 
 	r.Push(t2)
-	result, err = r.Peek(1)
+	result, err = r.Peek()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +196,7 @@ func TestRasterizingStack_Peek(t *testing.T) {
 	r.Push(t3)
 	r.Push(t4)
 	r.Pop()
-	result, err = r.Peek(1)
+	result, err = r.Peek()
 	if err != nil {
 		t.Fatal(err)
 	}

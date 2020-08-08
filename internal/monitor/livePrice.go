@@ -36,7 +36,6 @@ func subscribeToProductTicker(connection *websocket.Conn, productId string) erro
 		},
 	}
 
-	subscriptionConfirmation := Definition{}
 	expectedConfirmation := Definition{
 		Type: "subscriptions",
 		Channels: []Channel{
@@ -49,6 +48,7 @@ func subscribeToProductTicker(connection *websocket.Conn, productId string) erro
 
 	err := connection.WriteJSON(subscribe)
 
+	subscriptionConfirmation := Definition{}
 	for !reflect.DeepEqual(subscriptionConfirmation, expectedConfirmation) {
 		err = connection.ReadJSON(&subscriptionConfirmation)
 		log.Printf("waiting for confirmation")
@@ -58,37 +58,33 @@ func subscribeToProductTicker(connection *websocket.Conn, productId string) erro
 	return err
 }
 
-func readTickerSubscription(connection *websocket.Conn, m *priceMonitor) {
-
+func readTickerSubscription(connection *websocket.Conn, m *priceMonitor) error {
 	for {
 		ticker := Ticker{}
 		err := connection.ReadJSON(&ticker)
 		if err != nil {
-			log.Printf("failed to send message due to: %s", err)
-			break
+			return err
 		}
 
 		m.UpdatePrice(ticker)
 	}
-
-	log.Printf("closing")
-	err := connection.Close()
-	if err != nil {
-		log.Fatal(err)
-	}
-
 }
 
 func (monitor *priceMonitor) PopulateLive() {
-	connection, err := connectToCoinbase(monitor.coinbase)
-	if err != nil {
-		log.Fatal(err)
-	}
+	for {
+		connection, err := connectToCoinbase(monitor.coinbase)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	err = subscribeToProductTicker(connection, monitor.Product)
-	if err != nil {
-		log.Fatal(err)
-	}
+		err = subscribeToProductTicker(connection, monitor.Product)
+		if err != nil {
+			log.Printf("there was an issue subscribing to %s live prices: %s", monitor.Product, err)
+		}
 
-	readTickerSubscription(connection, monitor)
+		err = readTickerSubscription(connection, monitor)
+		if err != nil {
+			log.Printf("there was an issue read tickers - restarting connection %s", err)
+		}
+	}
 }

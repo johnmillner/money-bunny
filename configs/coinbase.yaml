@@ -1,9 +1,14 @@
-auth:
-  key: testKey
-  secret: testSecret
 price:
   live-price-ws: "wss://ws-feed.pro.coinbase.com"
-  historical-price-https: "https://api.pro.coinbase.com/products/%s/candles"
+  historical-price:
+    https: "https://api.pro.coinbase.com/products/%s/candles"
+    granularity :
+      - 60
+      - 300
+      - 900
+      - 3600
+      - 21600
+      - 86400
   products:
     - BTC-USD
     - ETH-USD

@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var TimeFormat = time.RFC3339 //"2006-01-02T15:04:05.0700Z"
+var TimeFormat = time.RFC3339
 
 type Candle struct {
 	Time   time.Time
@@ -31,7 +31,7 @@ func NewTickerFromCandle(raw []float64, productId string) Ticker {
 }
 
 func CreateCandleQuery(monitor *priceMonitor) (*url.URL, error) {
-	historicalUrl, err := url.Parse(fmt.Sprintf(monitor.coinbase.Price.HistoricalPriceHttps, monitor.Product))
+	historicalUrl, err := url.Parse(fmt.Sprintf(monitor.coinbase.Price.HistoricalPrice.Https, monitor.Product))
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("could not populate historical due to %s", err))
 	}
@@ -60,33 +60,45 @@ func gatherRawCandles(historicalUrl string) ([][]float64, error) {
 	rawCandles := make([][]float64, 0)
 	err = json.Unmarshal(body, &rawCandles)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("could not populate historical due to %s", err))
+		return nil, errors.New(fmt.Sprintf("could not populate historical due to %s with body %s", err, body))
 	}
 
 	reverseArray(rawCandles)
 
 	return rawCandles, nil
 }
-
-func (monitor *priceMonitor) PopulateHistorical() error {
-	log.Printf("gathering historical data for granularity %d seconds", int(monitor.Granularity.Seconds()))
+func (monitor *priceMonitor) gatherFrameOfHistorical() error {
+	log.Printf("gathering candle data for granularity %d seconds", int(monitor.Granularity.Seconds()))
 
 	historicalUrl, err := CreateCandleQuery(monitor)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	rawCandles, err := gatherRawCandles(historicalUrl.String())
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
+	monitor.restartStack()
 	for _, raw := range rawCandles {
 		monitor.UpdatePrice(NewTickerFromCandle(raw, monitor.Product))
 	}
 
-	log.Printf("finished historical")
 	return nil
+}
+
+func (monitor *priceMonitor) PopulateHistorical() {
+	for {
+		err := monitor.gatherFrameOfHistorical()
+		if err != nil {
+			log.Printf("cannnot load hisotical data due to: %s", err)
+			continue
+		}
+		log.Printf("finished historical - sleeping till next update")
+		time.Sleep(monitor.Granularity)
+	}
+
 }
 
 func reverseArray(a [][]float64) {

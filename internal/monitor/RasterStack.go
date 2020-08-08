@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"errors"
-	"fmt"
 )
 
 // RasterStack contains a ring buffer style stack that can have a Rasterized array of the current state printed out
@@ -34,12 +33,12 @@ func (c *RasterStack) Pop() {
 	c.stack = c.stack[:len(c.stack)-1]
 }
 
-func (c *RasterStack) Peek(back int) (Ticker, error) {
+func (c *RasterStack) Peek() (Ticker, error) {
 	if len(c.stack) < 1 {
-		return Ticker{}, errors.New(fmt.Sprintf("cannot peek because stack the stack is smaller than %d", back))
+		return Ticker{}, errors.New("cannot peek because stack the stack is smaller than 1")
 	}
 
-	return c.stack[(c.beginning+len(c.stack)-back)%c.capacity], nil
+	return c.stack[(c.beginning+len(c.stack)-1)%c.capacity], nil
 }
 
 // Raster copies the current low level data-structure into

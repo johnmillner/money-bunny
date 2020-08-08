@@ -10,6 +10,7 @@ import (
 func TestPriceMonitor_PopulateHistorical(t *testing.T) {
 	coinbase := Coinbase{}
 	err := yaml.ParseYaml("../../configs\\coinbase.yaml", &coinbase)
+	t.Logf("%v", coinbase)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -17,7 +18,7 @@ func TestPriceMonitor_PopulateHistorical(t *testing.T) {
 	channel := make(chan []Ticker, 1000)
 	monitor := NewMonitor("BTC-USD", 60*time.Second, 200, &channel, coinbase)
 
-	err = monitor.PopulateHistorical()
+	err = monitor.gatherFrameOfHistorical()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,10 +49,10 @@ func TestCreateCandleQuery(t *testing.T) {
 	monitor := NewMonitor("BTC-USD", 60*time.Second, 200, &channel, coinbase)
 
 	url, err := CreateCandleQuery(monitor)
-	t.Log(url)
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Log(url)
 
 	start, err := time.Parse(TimeFormat, url.Query().Get("start"))
 	if err != nil {
@@ -73,7 +74,7 @@ func TestCreateCandleQuery(t *testing.T) {
 		t.Fatalf("expected granularity to be 10s was %s", url.Query().Get("granularity"))
 	}
 
-	segmentsOfCall := strings.Split(coinbase.Price.HistoricalPriceHttps, "%s")
+	segmentsOfCall := strings.Split(coinbase.Price.HistoricalPrice.Https, "%s")
 	for _, segment := range segmentsOfCall {
 		if !strings.Contains(url.String(), segment) {
 			t.Fatalf("expected %s but was not found in url", segment)

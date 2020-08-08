@@ -14,12 +14,13 @@ func TestPriceMonitor_PopulateLive(t *testing.T) {
 	}
 
 	channel := make(chan []Ticker, 1000)
-	monitor := NewMonitor("BTC-USD", 1*time.Second, 200, &channel, coinbase)
+	monitor := NewMonitor("BTC-USD", 1*time.Second, 10, &channel, coinbase)
 
 	go monitor.PopulateLive()
 
 	counter := 0
 	for tickers := range channel {
+
 		counter++
 		for i, ticker := range tickers {
 			if ticker.ProductId != "BTC-USD" {
@@ -27,11 +28,11 @@ func TestPriceMonitor_PopulateLive(t *testing.T) {
 			}
 			expectedTime := tickers[0].Time.UTC().Add(monitor.Granularity * time.Duration(i))
 			if !expectedTime.Equal(ticker.Time) {
-				t.Fatalf("expected timestamp to be %s but was %s", expectedTime, ticker.Time)
+				t.Fatalf("expected timestamp to be %s but was %s, %v", expectedTime, ticker.Time, tickers)
 			}
 		}
 
-		if counter >= 30 {
+		if counter >= 21 {
 			break
 		}
 	}

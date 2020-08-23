@@ -15,7 +15,7 @@ func TestRasterizingStack_IsFull_edgeFull(t *testing.T) {
 
 func TestRasterizingStack_IsFull_full(t *testing.T) {
 	r := NewOuroboros(1)
-	r.Push(Ticker{
+	r = r.Push(Ticker{
 		ProductId: "1",
 	})
 
@@ -60,14 +60,14 @@ func TestRasterizingStack_Push(t *testing.T) {
 
 	r := NewOuroboros(2)
 
-	r.Push(t1)
+	r = r.Push(t1)
 	expected := make([]Ticker, 1)
 	expected[0] = t1
 	if !reflect.DeepEqual(expected, r.Raster()) {
 		t.Fatalf("expected %v, got %v", expected, r.Raster())
 	}
 
-	r.Push(t2)
+	r = r.Push(t2)
 	expected = make([]Ticker, 2)
 	expected[0] = t1
 	expected[1] = t2
@@ -75,21 +75,21 @@ func TestRasterizingStack_Push(t *testing.T) {
 		t.Fatalf("expected %v, got %v", expected, r.Raster())
 	}
 
-	r.Push(t3)
+	r = r.Push(t3)
 	expected[0] = t2
 	expected[1] = t3
 	if !reflect.DeepEqual(expected, r.Raster()) {
 		t.Fatalf("expected %v, got %v", expected, r.Raster())
 	}
 
-	r.Push(t4)
+	r = r.Push(t4)
 	expected[0] = t3
 	expected[1] = t4
 	if !reflect.DeepEqual(expected, r.Raster()) {
 		t.Fatalf("expected %v, got %v", expected, r.Raster())
 	}
 
-	r.Push(t5)
+	r = r.Push(t5)
 	expected[0] = t4
 	expected[1] = t5
 	if !reflect.DeepEqual(expected, r.Raster()) {
@@ -125,7 +125,7 @@ func TestRasterizingStack_Peek(t *testing.T) {
 	if err == nil {
 		t.Fatal("should receive an error when peeking at empty stack")
 	}
-	r.Push(t1)
+	r = r.Push(t1)
 	result, err = r.Peek()
 	if err != nil {
 		t.Fatal(err)
@@ -134,7 +134,7 @@ func TestRasterizingStack_Peek(t *testing.T) {
 		t.Fatalf("expected %v, got %v", t1, result)
 	}
 
-	r.Push(t2)
+	r = r.Push(t2)
 	result, err = r.Peek()
 	if err != nil {
 		t.Fatal(err)
@@ -143,8 +143,8 @@ func TestRasterizingStack_Peek(t *testing.T) {
 		t.Fatalf("expected %v, got %v", t2, result)
 	}
 
-	r.Push(t3)
-	r.Push(t4)
+	r = r.Push(t3)
+	r = r.Push(t4)
 	result, err = r.Peek()
 	if err != nil {
 		t.Fatal(err)

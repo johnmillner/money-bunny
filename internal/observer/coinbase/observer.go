@@ -26,6 +26,10 @@ type Coinbase struct {
 
 // UpdatePrice is responsible for maintaining the Observer's Prices
 func (o *Observer) UpdatePrice(ticker observer.Ticker) {
+	o.updatePriceParent(ticker, true)
+}
+
+func (o *Observer) updatePriceParent(ticker observer.Ticker, parent bool) {
 
 	peek, err := o.prices.Peek()
 
@@ -39,19 +43,19 @@ func (o *Observer) UpdatePrice(ticker observer.Ticker) {
 
 	//recursively back fill prices if a gap is noticed in data is noticed
 	if err == nil && !standardizedTime.Before(peek.Time.Add(2*o.Granularity)) {
-		o.UpdatePrice(observer.Ticker{
+		o.updatePriceParent(observer.Ticker{
 			ProductId: peek.ProductId,
 			Price:     peek.Price,
 			Time:      standardizedTime.Add(-1 * o.Granularity),
-		})
+		}, false)
 	}
 
-	// add this price - rounded - to the o
+	// add this ticker
 	ticker.Time = standardizedTime
-	o.prices.Push(ticker)
+	o.prices = o.prices.Push(ticker)
 
-	//broadcast change if the stack is ready for processing
-	if o.prices.IsFull() {
+	//broadcast change if the stack is ready for processing - do not post children
+	if o.prices.IsFull() && parent {
 		o.channel <- o.prices.Raster()
 	}
 }

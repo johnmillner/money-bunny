@@ -72,6 +72,9 @@ func readTickerSubscription(connection *websocket.Conn, o *Observer) error {
 }
 
 func (o *Observer) PopulateLive() {
+	var connection *websocket.Conn
+	defer closeConnection(connection)
+
 	for {
 		connection, err := connectToCoinbase(o.coinbase)
 		if err != nil {
@@ -83,9 +86,16 @@ func (o *Observer) PopulateLive() {
 			log.Printf("there was an issue subscribing to %s live prices: %s", o.Product, err)
 		}
 
+		// will loop while the connection is active - breaking out if a connection drops
 		err = readTickerSubscription(connection, o)
 		if err != nil {
 			log.Printf("there was an issue read tickers - restarting connection %s", err)
 		}
+
+		_ = connection.Close()
 	}
+}
+
+func closeConnection(connection *websocket.Conn) {
+	_ = connection.Close()
 }

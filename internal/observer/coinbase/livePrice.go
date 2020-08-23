@@ -92,7 +92,7 @@ func (o *Observer) PopulateLive() {
 			log.Printf("there was an issue read tickers - restarting connection %s", err)
 		}
 
-		_ = connection.Close()
+		closeConnection(connection)
 	}
 }
 

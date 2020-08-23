@@ -20,7 +20,7 @@ type Coinbase struct {
 			Https      string    `yaml:"https"`
 			Granulates []float64 `yaml:"granularity"`
 		} `yaml:"historical-price"`
-		Products []string `yaml:"Products"`
+		Products []string `yaml:"products"`
 	}
 }
 

@@ -1,6 +1,7 @@
-package monitor
+package coinbase
 
 import (
+	"github.com/johnmillner/robo-macd/internal/observer"
 	"github.com/johnmillner/robo-macd/internal/yaml"
 	"testing"
 	"time"
@@ -8,19 +9,18 @@ import (
 
 func TestPriceMonitor_PopulateLive(t *testing.T) {
 	coinbase := Coinbase{}
-	err := yaml.ParseYaml("../../configs\\coinbase.yaml", &coinbase)
+	err := yaml.ParseYaml("../../../configs\\coinbase.yaml", &coinbase)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	channel := make(chan []Ticker, 1000)
-	monitor := NewMonitor("BTC-USD", 1*time.Second, 10, &channel, coinbase)
+	channel := make(chan []observer.Ticker, 1000)
+	monitor := NewMonitor("BTC-USD", 5*time.Second, 5, &channel, coinbase)
 
 	go monitor.PopulateLive()
 
 	counter := 0
 	for tickers := range channel {
-
 		counter++
 		for i, ticker := range tickers {
 			if ticker.ProductId != "BTC-USD" {
@@ -32,7 +32,7 @@ func TestPriceMonitor_PopulateLive(t *testing.T) {
 			}
 		}
 
-		if counter >= 21 {
+		if counter >= 11 {
 			break
 		}
 	}

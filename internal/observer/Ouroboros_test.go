@@ -1,21 +1,20 @@
-package monitor
+package observer
 
 import (
-	"log"
 	"reflect"
 	"testing"
 	"time"
 )
 
 func TestRasterizingStack_IsFull_edgeFull(t *testing.T) {
-	r := NewRasterStack(0)
+	r := NewOuroboros(0)
 	if !r.IsFull() {
 		t.Fail()
 	}
 }
 
 func TestRasterizingStack_IsFull_full(t *testing.T) {
-	r := NewRasterStack(1)
+	r := NewOuroboros(1)
 	r.Push(Ticker{
 		ProductId: "1",
 	})
@@ -26,7 +25,7 @@ func TestRasterizingStack_IsFull_full(t *testing.T) {
 }
 
 func TestRasterizingStack_IsFull_empty(t *testing.T) {
-	r := NewRasterStack(1)
+	r := NewOuroboros(1)
 	if r.IsFull() {
 		t.Fail()
 	}
@@ -53,8 +52,13 @@ func TestRasterizingStack_Push(t *testing.T) {
 		Price:     0,
 		Time:      time.Time{},
 	}
+	t5 := Ticker{
+		ProductId: "5",
+		Price:     0,
+		Time:      time.Time{},
+	}
 
-	r := NewRasterStack(2)
+	r := NewOuroboros(2)
 
 	r.Push(t1)
 	expected := make([]Ticker, 1)
@@ -84,64 +88,10 @@ func TestRasterizingStack_Push(t *testing.T) {
 	if !reflect.DeepEqual(expected, r.Raster()) {
 		t.Fatalf("expected %v, got %v", expected, r.Raster())
 	}
-}
 
-func TestRasterizingStack_Pop(t *testing.T) {
-	t1 := Ticker{
-		ProductId: "1",
-		Price:     0,
-		Time:      time.Time{},
-	}
-	t2 := Ticker{
-		ProductId: "2",
-		Price:     0,
-		Time:      time.Time{},
-	}
-	t3 := Ticker{
-		ProductId: "3",
-		Price:     0,
-		Time:      time.Time{},
-	}
-	t4 := Ticker{
-		ProductId: "4",
-		Price:     0,
-		Time:      time.Time{},
-	}
-
-	r := NewRasterStack(2)
-
-	r.Push(t1)
-	r.Push(t2)
-	r.Pop()
-	expected := make([]Ticker, 1)
-	expected[0] = t1
-	if !reflect.DeepEqual(expected, r.Raster()) {
-		t.Fatalf("expected %v, got %v", expected, r.Raster())
-	}
-
-	r.Push(t3)
-	expected = make([]Ticker, 2)
-	expected[0] = t1
-	expected[1] = t3
-	if !reflect.DeepEqual(expected, r.Raster()) {
-		t.Fatalf("expected %v, got %v", expected, r.Raster())
-	}
-
-	r.Push(t4)
-	r.Pop()
-	expected = make([]Ticker, 1)
-	expected[0] = t3
-	if !reflect.DeepEqual(expected, r.Raster()) {
-		t.Fatalf("expected %v, got %v", expected, r.Raster())
-	}
-
-	r.Pop()
-	expected = make([]Ticker, 0)
-	if !reflect.DeepEqual(expected, r.Raster()) {
-		log.Printf("expected %v, got %v", expected, r.Raster())
-	}
-
-	r.Pop()
+	r.Push(t5)
+	expected[0] = t4
+	expected[1] = t5
 	if !reflect.DeepEqual(expected, r.Raster()) {
 		t.Fatalf("expected %v, got %v", expected, r.Raster())
 	}
@@ -169,7 +119,7 @@ func TestRasterizingStack_Peek(t *testing.T) {
 		Time:      time.Time{},
 	}
 
-	r := NewRasterStack(2)
+	r := NewOuroboros(2)
 
 	result, err := r.Peek()
 	if err == nil {
@@ -195,12 +145,11 @@ func TestRasterizingStack_Peek(t *testing.T) {
 
 	r.Push(t3)
 	r.Push(t4)
-	r.Pop()
 	result, err = r.Peek()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result != t3 {
-		t.Fatalf("expected %v, got %v", t3, result)
+	if result != t4 {
+		t.Fatalf("expected %v, got %v", t4, result)
 	}
 }

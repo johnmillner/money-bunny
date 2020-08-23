@@ -1,7 +1,8 @@
-package monitor
+package coinbase
 
 import (
 	"github.com/gorilla/websocket"
+	"github.com/johnmillner/robo-macd/internal/observer"
 	"log"
 	"reflect"
 )
@@ -58,31 +59,31 @@ func subscribeToProductTicker(connection *websocket.Conn, productId string) erro
 	return err
 }
 
-func readTickerSubscription(connection *websocket.Conn, m *priceMonitor) error {
+func readTickerSubscription(connection *websocket.Conn, o *Observer) error {
 	for {
-		ticker := Ticker{}
+		ticker := observer.Ticker{}
 		err := connection.ReadJSON(&ticker)
 		if err != nil {
 			return err
 		}
 
-		m.UpdatePrice(ticker)
+		o.UpdatePrice(ticker)
 	}
 }
 
-func (monitor *priceMonitor) PopulateLive() {
+func (o *Observer) PopulateLive() {
 	for {
-		connection, err := connectToCoinbase(monitor.coinbase)
+		connection, err := connectToCoinbase(o.coinbase)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		err = subscribeToProductTicker(connection, monitor.Product)
+		err = subscribeToProductTicker(connection, o.Product)
 		if err != nil {
-			log.Printf("there was an issue subscribing to %s live prices: %s", monitor.Product, err)
+			log.Printf("there was an issue subscribing to %s live prices: %s", o.Product, err)
 		}
 
-		err = readTickerSubscription(connection, monitor)
+		err = readTickerSubscription(connection, o)
 		if err != nil {
 			log.Printf("there was an issue read tickers - restarting connection %s", err)
 		}

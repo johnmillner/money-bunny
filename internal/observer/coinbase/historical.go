@@ -1,9 +1,10 @@
-package monitor
+package coinbase
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/johnmillner/robo-macd/internal/observer"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -22,23 +23,23 @@ type Candle struct {
 	Volume float64
 }
 
-func NewTickerFromCandle(raw []float64, productId string) Ticker {
-	return Ticker{
+func NewTickerFromCandle(raw []float64, productId string) observer.Ticker {
+	return observer.Ticker{
 		ProductId: productId,
 		Price:     raw[4],
 		Time:      time.Unix(int64(raw[0]), 0).UTC(),
 	}
 }
 
-func CreateCandleQuery(monitor *priceMonitor) (*url.URL, error) {
-	historicalUrl, err := url.Parse(fmt.Sprintf(monitor.coinbase.Price.HistoricalPrice.Https, monitor.Product))
+func CreateCandleQuery(observer *Observer) (*url.URL, error) {
+	historicalUrl, err := url.Parse(fmt.Sprintf(observer.coinbase.Price.HistoricalPrice.Https, observer.Product))
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("could not populate historical due to %s", err))
 	}
 
 	queries := historicalUrl.Query()
-	queries.Set("granularity", fmt.Sprintf("%d", int(monitor.Granularity.Seconds())))
-	queries.Set("start", time.Now().Add(-1*monitor.Granularity*time.Duration(monitor.prices.capacity+1)).In(time.UTC).Format(TimeFormat))
+	queries.Set("granularity", fmt.Sprintf("%d", int(observer.Granularity.Seconds())))
+	queries.Set("start", time.Now().Add(-1*observer.Granularity*time.Duration(observer.prices.Capacity+1)).In(time.UTC).Format(TimeFormat))
 	queries.Set("end", time.Now().Add(time.Minute).In(time.UTC).Format(TimeFormat))
 	historicalUrl.RawQuery = queries.Encode()
 
@@ -67,10 +68,10 @@ func gatherRawCandles(historicalUrl string) ([][]float64, error) {
 
 	return rawCandles, nil
 }
-func (monitor *priceMonitor) gatherFrameOfHistorical() error {
-	log.Printf("gathering candle data for granularity %d seconds", int(monitor.Granularity.Seconds()))
+func (o *Observer) gatherFrameOfHistorical() error {
+	log.Printf("gathering candle data for granularity %d seconds", int(o.Granularity.Seconds()))
 
-	historicalUrl, err := CreateCandleQuery(monitor)
+	historicalUrl, err := CreateCandleQuery(o)
 	if err != nil {
 		return err
 	}
@@ -80,23 +81,23 @@ func (monitor *priceMonitor) gatherFrameOfHistorical() error {
 		return err
 	}
 
-	monitor.restartStack()
+	o.restartStack()
 	for _, raw := range rawCandles {
-		monitor.UpdatePrice(NewTickerFromCandle(raw, monitor.Product))
+		o.UpdatePrice(NewTickerFromCandle(raw, o.Product))
 	}
 
 	return nil
 }
 
-func (monitor *priceMonitor) PopulateHistorical() {
+func (o *Observer) PopulateHistorical() {
 	for {
-		err := monitor.gatherFrameOfHistorical()
+		err := o.gatherFrameOfHistorical()
 		if err != nil {
 			log.Printf("cannnot load hisotical data due to: %s", err)
 			continue
 		}
 		log.Printf("finished historical - sleeping till next update")
-		time.Sleep(monitor.Granularity)
+		time.Sleep(o.Granularity)
 	}
 
 }

@@ -41,6 +41,7 @@ func main() {
 			Initialize()
 	}
 
+	//todo
 	for tickers := range channel {
 		log.Printf("%v", tickers)
 	}

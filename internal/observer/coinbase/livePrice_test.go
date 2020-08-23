@@ -9,7 +9,7 @@ import (
 
 func TestPriceMonitor_PopulateLive(t *testing.T) {
 	coinbase := Coinbase{}
-	err := yaml.ParseYaml("../../../configs\\coinbase.yaml", &coinbase)
+	err := yaml.ParseYaml("../../../configs/coinbase.yaml", &coinbase)
 	if err != nil {
 		t.Fatal(err)
 	}

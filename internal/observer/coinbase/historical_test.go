@@ -10,7 +10,7 @@ import (
 
 func TestPriceMonitor_PopulateHistorical(t *testing.T) {
 	coinbase := Coinbase{}
-	err := yaml.ParseYaml("../../../configs\\coinbase.yaml", &coinbase)
+	err := yaml.ParseYaml("../../../configs/coinbase.yaml", &coinbase)
 
 	if err != nil {
 		t.Fatal(err)
@@ -41,7 +41,7 @@ func TestPriceMonitor_PopulateHistorical(t *testing.T) {
 
 func TestCreateCandleQuery(t *testing.T) {
 	coinbase := Coinbase{}
-	err := yaml.ParseYaml("../../../configs\\coinbase.yaml", &coinbase)
+	err := yaml.ParseYaml("../../../configs/coinbase.yaml", &coinbase)
 	if err != nil {
 		t.Fatal(err)
 	}

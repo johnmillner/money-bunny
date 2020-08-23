@@ -80,7 +80,7 @@ func TestPriceMonitor_UpdatePrice(t *testing.T) {
 
 func TestPriceMonitor_Initialize(t *testing.T) {
 	coinbase := Coinbase{}
-	err := yaml.ParseYaml("../../../configs\\coinbase.yaml", &coinbase)
+	err := yaml.ParseYaml("../../../configs/coinbase.yaml", &coinbase)
 	if err != nil {
 		log.Fatal(err)
 	}

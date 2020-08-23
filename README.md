@@ -1,4 +1,6 @@
 ![Go](https://github.com/johnmillner/robo-macd/workflows/Go/badge.svg)
+![gopherbadger-tag-do-not-edit]()
+
 
 # robo-macd
 Simple MACD based Robo-Advisor

@@ -1,5 +1,6 @@
 ![Go](https://github.com/johnmillner/robo-macd/workflows/Go/badge.svg)
 
+
 # robo-macd
 Simple MACD based Robo-Advisor
 
@@ -12,11 +13,12 @@ Inspired by the video here by [Trading Rush](https://www.youtube.com/watch?v=nmf
 This is a MACD based robo-advisor that will buy and sell crypto from coinbase based solely on that crypto's MACD.
 
 # configuration
-## configs/coinbaseAuth.yml
+## configs/coinbase.yaml
 this is a secure file that contains your own coinbase api authentication details. There are two values - it is on the gitignore list for safety.
 ```yaml
-key: example
-secret: example
+auth:
+  key: example
+  secret: example
 ```
 you can retrieve these details by ...todo
 

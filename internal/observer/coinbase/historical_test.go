@@ -33,8 +33,16 @@ func TestPriceMonitor_PopulateHistorical(t *testing.T) {
 		if ticker.ProductId != "BTC-USD" {
 			t.Fatalf("tickerId was expected to be BTC-USD and was %s", ticker.ProductId)
 		}
-		if !time.Now().Round(time.Minute).UTC().Add(time.Minute * time.Duration(-1*(monitor.prices.Capacity-i))).Equal(ticker.Time.UTC()) {
-			t.Fatalf("expected timestamp to be %s but was %s for %v", time.Now().UTC().Round(time.Minute).Add(time.Minute*time.Duration(-1*(monitor.prices.Capacity-i))), ticker.Time.UTC(), monitor.prices.Raster())
+		if !time.Now().
+			Round(time.Minute).
+			UTC().
+			Add(time.Minute * time.Duration(-1*(monitor.prices.Capacity-i))).
+			Equal(ticker.Time.UTC()) {
+			t.Fatalf("expected timestamp to be %s but was %s for %v", time.Now().
+				UTC().
+				Round(time.Minute).
+				Add(time.Minute*time.Duration(-1*(monitor.prices.Capacity-i))), ticker.Time.UTC(),
+				monitor.prices.Raster())
 		}
 	}
 }

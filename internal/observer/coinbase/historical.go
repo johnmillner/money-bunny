@@ -39,7 +39,10 @@ func CreateCandleQuery(observer *Observer) (*url.URL, error) {
 
 	queries := historicalUrl.Query()
 	queries.Set("granularity", fmt.Sprintf("%d", int(observer.Granularity.Seconds())))
-	queries.Set("start", time.Now().Add(-1*observer.Granularity*time.Duration(observer.prices.Capacity+1)).In(time.UTC).Format(TimeFormat))
+	queries.Set("start", time.Now().
+		Add(-1*observer.Granularity*time.Duration(observer.prices.Capacity+1)).
+		In(time.UTC).
+		Format(TimeFormat))
 	queries.Set("end", time.Now().Add(time.Minute).In(time.UTC).Format(TimeFormat))
 	historicalUrl.RawQuery = queries.Encode()
 

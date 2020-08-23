@@ -60,7 +60,12 @@ func (o *Observer) updatePriceParent(ticker observer.Ticker, parent bool) {
 	}
 }
 
-func NewMonitor(product string, granularity time.Duration, capacity int, channel *chan []observer.Ticker, coinbase Coinbase) *Observer {
+func NewMonitor(
+	product string,
+	granularity time.Duration,
+	capacity int,
+	channel *chan []observer.Ticker,
+	coinbase Coinbase) *Observer {
 	return &Observer{
 		Product:     product,
 		Granularity: granularity,

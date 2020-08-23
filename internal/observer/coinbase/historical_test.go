@@ -29,20 +29,24 @@ func TestPriceMonitor_PopulateHistorical(t *testing.T) {
 		t.Fatalf("expected 200 Tickers, was %d", priceSize)
 	}
 
-	for i, ticker := range monitor.prices.Raster() {
+	tickers := monitor.prices.Raster()
+
+	expectedMinStart := time.Now().Add(-2 * monitor.Granularity).UTC()
+	expectedMaxStart := time.Now().Add(2 * monitor.Granularity).UTC()
+	if tickers[len(tickers)-1].Time.After(expectedMaxStart) || tickers[len(tickers)-1].Time.Before(expectedMinStart) {
+		t.Fatalf("start time of historical frame is outside of expected range %s, start %s, end %s",
+			tickers[len(tickers)-1].Time,
+			expectedMinStart,
+			expectedMaxStart)
+	}
+
+	for i, ticker := range tickers {
 		if ticker.ProductId != "BTC-USD" {
 			t.Fatalf("tickerId was expected to be BTC-USD and was %s", ticker.ProductId)
 		}
-		if !time.Now().
-			Round(time.Minute).
-			UTC().
-			Add(time.Minute * time.Duration(-1*(monitor.prices.Capacity-i))).
-			Equal(ticker.Time.UTC()) {
-			t.Fatalf("expected timestamp to be %s but was %s for %v", time.Now().
-				UTC().
-				Round(time.Minute).
-				Add(time.Minute*time.Duration(-1*(monitor.prices.Capacity-i))), ticker.Time.UTC(),
-				monitor.prices.Raster())
+		expectedTime := tickers[0].Time.Add(monitor.Granularity * time.Duration(i))
+		if !expectedTime.Equal(ticker.Time) {
+			t.Fatalf("expected timestamp to be %s but was %s, %v", expectedTime, ticker.Time, tickers)
 		}
 	}
 }

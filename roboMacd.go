@@ -1,21 +1,13 @@
 package main
 
 import (
+	"github.com/johnmillner/robo-macd/internal/macd"
 	"github.com/johnmillner/robo-macd/internal/observer"
 	"github.com/johnmillner/robo-macd/internal/observer/coinbase"
 	"github.com/johnmillner/robo-macd/internal/yaml"
 	"log"
 	"time"
 )
-
-type RoboConfig struct {
-	MacdCalculator struct {
-		Period float64 `yaml:"period"`
-		Trend  struct {
-			TrendEmaPeriod int `yaml:"trend-ema-period"`
-		} `yaml:"trend"`
-	} `yaml:"macd-calculator"`
-}
 
 func main() {
 	coinbaseConfig := coinbase.Coinbase{}
@@ -24,7 +16,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	roboConfig := RoboConfig{}
+	roboConfig := macd.RoboConfig{}
 	err = yaml.ParseYaml("configs/config.yaml", &roboConfig)
 	if err != nil {
 		log.Fatal(err)

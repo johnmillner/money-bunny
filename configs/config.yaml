@@ -8,5 +8,5 @@ macd-calculator:
     26-period-ema: 26
     9-period-ema: 9
   trend: # values used to calculate trend line
-    trend-ema-period: 200
-  period: 60 # period in seconds - can be 60(1m), 300(5m), 900(15), 3600(1h), 21600(6h), 86400(1d) or a custom value
+    trend-ema-period: 2
+  period: 5 # period in seconds - can be 60(1m), 300(5m), 900(15), 3600(1h), 21600(6h), 86400(1d) or a custom value

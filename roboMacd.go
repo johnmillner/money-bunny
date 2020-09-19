@@ -1,11 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"github.com/johnmillner/robo-macd/internal/macd"
 	"github.com/johnmillner/robo-macd/internal/observer"
 	"github.com/johnmillner/robo-macd/internal/observer/coinbase"
 	"github.com/johnmillner/robo-macd/internal/yaml"
 	"log"
+	"net/http"
 	"time"
 )
 
@@ -33,8 +35,18 @@ func main() {
 			Initialize()
 	}
 
+	var ticker []observer.Ticker
+
 	//todo
-	for tickers := range channel {
-		log.Printf("%v", tickers)
-	}
+	go func() {
+		for tickers := range channel {
+			ticker = tickers
+		}
+	}()
+
+	http.HandleFunc("/observe", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "%v", ticker)
+	})
+
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }

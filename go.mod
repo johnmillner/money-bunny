@@ -3,6 +3,6 @@ module github.com/johnmillner/robo-macd
 go 1.14
 
 require (
-	github.com/gorilla/websocket v1.4.2
-	gopkg.in/yaml.v2 v2.3.0
+	github.com/alpacahq/alpaca-trade-api-go v1.6.1
+	github.com/google/uuid v1.1.2
 )

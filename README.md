@@ -18,7 +18,7 @@ This is a MACD based robo-advisor that will buy and sell crypto from coinbase ba
 
 # Structure
 
-![Diagrams](/readme-static/diagrams.svg)
+[Diagrams found in draw.io](https://app.diagrams.net/?lightbox=1&highlight=0000ff&edit=_blank&layers=1&nav=1&title=RoboAdvisor#Uhttps%3A%2F%2Fdrive.google.com%2Fuc%3Fid%3D1fZWEaOWSyaqYmPYYk0OZuidXkcBH2hcp%26export%3Ddownload)
 
 ## Alpaca
 [Alpaca](https://alpaca.markets/) is an API first, 0 commission broker that is used by this robo-advisor to interact with equity markets

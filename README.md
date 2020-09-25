@@ -32,6 +32,7 @@ term swing trades as well as longer term plays - with different stocks bought (e
 [Alpaca](https://alpaca.markets/) is an API first, 0 commission broker that is used by this robo-advisor to interact with equity markets
 
 ## Gatherers
+Gathers data from a Broker (in this case Alpaca) and transforms to a canonical representation that is then sent to a Transformer
 ### Price Streamer
 Streams in live prices from targeted equities (from configuration/UI) using Alpaca API
 ### Price Fetcher

@@ -9,8 +9,9 @@ import (
 	"time"
 )
 
-type FetcherConfig struct {
+type GathererConfig struct {
 	To         uuid.UUID
+	From       uuid.UUID
 	Active     bool
 	SimpleData chan transformers.SimpleData
 	Client     alpaca.Client
@@ -19,26 +20,32 @@ type FetcherConfig struct {
 	Limit      int
 }
 
-func (c FetcherConfig) GetTo() uuid.UUID {
+func (c GathererConfig) GetTo() uuid.UUID {
 	return c.To
 }
 
-func (c FetcherConfig) IsActive() bool {
+func (c GathererConfig) GetFrom() uuid.UUID {
+	return c.To
+}
+
+func (c GathererConfig) IsActive() bool {
 	return c.Active
 }
 
-func fetchData(config FetcherConfig) {
+func gather(config GathererConfig) {
 
+	// make api call
 	values, err := config.Client.ListBars(config.Symbols, alpaca.ListBarParams{
 		Timeframe: durationToTimeframe(config.Period),
 		Limit:     &config.Limit,
 	})
 
 	if err != nil {
-		log.Printf("could not fetch bars from alpaca due to %s", err)
+		log.Printf("could not gather bars from alpaca due to %s", err)
 		return
 	}
 
+	// translate results into canonical and send out
 	for symbol, bars := range values {
 		bars := bars
 		symbol := symbol
@@ -66,13 +73,19 @@ func durationToTimeframe(dur time.Duration) string {
 	case time.Hour * 24:
 		return "1D"
 	default:
-		log.Fatalf("cannot translate duration given to alpaca timeframe, given: %f (in seconds) - only acceptable durations are 1min, 5min, 15min, 1day", dur.Seconds())
+		log.Fatalf("cannot translate duration given to alpaca timeframe, given: %f (in seconds) "+
+			"- only acceptable durations are 1min, 5min, 15min, 1day", dur.Seconds())
 		return dur.String()
 	}
 }
 
-func StartFetching(configManager utils.ConfigManager) {
-	for config := configManager.Check().(FetcherConfig); config.Active; time.Sleep(config.Period) {
-		fetchData(config)
+func InitGatherer(configurator utils.Configurator) {
+	log.Printf("starting to gather with %v", configurator.Get())
+	for config := configurator.Get().(GathererConfig); config.Active; config = configurator.Get().(GathererConfig) {
+		go gather(config)
+		log.Printf("got set of data")
+		time.Sleep(config.Period)
 	}
+
+	log.Printf("shutting down fetcher %s", configurator.Me)
 }

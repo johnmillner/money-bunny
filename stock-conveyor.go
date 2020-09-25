@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/google/uuid"
+	coordinator2 "github.com/johnmillner/robo-macd/internal/coordinator"
 	"github.com/johnmillner/robo-macd/internal/gatherers"
 	"github.com/johnmillner/robo-macd/internal/transformers"
 	"github.com/johnmillner/robo-macd/internal/utils"
@@ -23,26 +24,46 @@ func init() {
 func main() {
 	alpacaClient := alpaca.NewClient(common.Credentials())
 
-	fetcherId, _ := uuid.NewRandom()
+	configOut := make(chan utils.Config, 100)
 
-	dataOut := make(chan transformers.SimpleData, 100000)
-	configManager := utils.ConfigManager{
-		Me:        fetcherId,
-		ConfigIn:  make(chan utils.ConfigMessage, 100000),
-		ConfigOut: make(chan utils.ConfigMessage, 100000),
-		Config: gatherers.FetcherConfig{
-			To:         fetcherId,
+	coordinatorId := uuid.New()
+	coordinator, mainConfigurator := coordinator2.InitCoordinator(configOut)
+
+	mainConfigurator.SendConfig(coordinator2.InitConfig{
+		To:        coordinatorId,
+		From:      mainConfigurator.Me,
+		Archetype: coordinator2.ArchetypeGatherer,
+		InitialConfig: gatherers.GathererConfig{
+			To:         coordinatorId,
+			From:       mainConfigurator.Me,
 			Active:     true,
-			SimpleData: dataOut,
+			SimpleData: make(chan transformers.SimpleData, 100000),
 			Client:     *alpacaClient,
 			Symbols:    []string{"TSLA", "AAPL"},
+			Limit:      5,
 			Period:     time.Minute,
 		},
-	}
+	})
 
-	go gatherers.StartFetching(configManager)
+	log.Printf("sent out")
+	time.Sleep(5 * time.Second)
 
-	for simpleData := range dataOut {
+	initResponse := mainConfigurator.Get()
+
+	log.Printf("got initResponse %v", initResponse)
+
+	mainConfigurator.SendConfig(gatherers.GathererConfig{
+		To:     coordinatorId,
+		From:   mainConfigurator.Me,
+		Active: false,
+	})
+
+	gatherer := coordinator.GetConfigurator(initResponse.(coordinator2.InitResponse).Id)
+
+	log.Printf("got gatherer")
+
+	for simpleData := range gatherer.Get().(gatherers.GathererConfig).SimpleData {
 		log.Printf("%v", simpleData)
 	}
+
 }

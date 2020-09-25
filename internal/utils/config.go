@@ -5,19 +5,19 @@ import (
 	"log"
 )
 
-type ConfigMessage interface {
+type Config interface {
 	GetTo() uuid.UUID
-	IsActive() bool
+	GetFrom() uuid.UUID
 }
 
-type ConfigManager struct {
+type Configurator struct {
 	Me        uuid.UUID
-	ConfigIn  chan ConfigMessage
-	ConfigOut chan ConfigMessage
-	Config    ConfigMessage
+	ConfigIn  chan Config
+	ConfigOut chan Config
+	Config    Config
 }
 
-func (c ConfigManager) Check() ConfigMessage {
+func (c Configurator) Get() Config {
 	select {
 	case config := <-c.ConfigIn:
 		if config.GetTo() != c.Me {
@@ -33,6 +33,8 @@ func (c ConfigManager) Check() ConfigMessage {
 	return c.Config
 }
 
-func (c *ConfigManager) SendConfig(config ConfigMessage) {
+func (c *Configurator) SendConfig(config Config) {
 	c.ConfigOut <- config
 }
+
+// todo add endpoint config ability

@@ -79,13 +79,16 @@ func durationToTimeframe(dur time.Duration) string {
 	}
 }
 
-func InitGatherer(configurator utils.Configurator) {
+func InitGatherer(configurator utils.Configurator) uuid.UUID {
 	log.Printf("starting to gather with %v", configurator.Get())
-	for config := configurator.Get().(GathererConfig); config.Active; config = configurator.Get().(GathererConfig) {
-		go gather(config)
-		log.Printf("got set of data")
-		time.Sleep(config.Period)
-	}
+	go func() {
+		for config := configurator.Get().(GathererConfig); config.Active; config = configurator.Get().(GathererConfig) {
+			go gather(config)
+			time.Sleep(config.Period)
+		}
 
-	log.Printf("shutting down fetcher %s", configurator.Me)
+		log.Printf("shutting down fetcher %s", configurator.Me)
+	}()
+
+	return configurator.Me
 }

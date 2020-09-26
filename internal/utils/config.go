@@ -25,9 +25,11 @@ func (c Configurator) Get() Config {
 			break
 		}
 
+		log.Printf("got update!")
 		c.Config = config
 	default:
 		// return prior config if nothing waiting in the channel to be picked up
+		log.Printf("no update")
 	}
 
 	return c.Config

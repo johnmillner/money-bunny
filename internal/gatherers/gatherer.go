@@ -1,6 +1,7 @@
 package gatherers
 
 import (
+	"fmt"
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 	"github.com/google/uuid"
 	"github.com/johnmillner/robo-macd/internal/utils"
@@ -70,10 +71,78 @@ type timeRange struct {
 	end    time.Time
 }
 
+// will round up to the nearest start of the day
+func findTimeRange(limit int, period time.Duration, client alpaca.Client) (time.Time, time.Time, map[time.Time]timeRange) {
+	//guess that the max time is less than 5x what we want + plus an additional 4 days
+	startYear, startMonth, startDay := time.Now().Add(-1 * 5 * period).Add(-1 * 4 * 24 * time.Hour).Date()
+	endYear, endMonth, endDay := time.Now().Date()
+	startString := fmt.Sprintf("%d-%d-%d", startYear, startMonth, startDay)
+	todayString := fmt.Sprintf("%d-%d-%d", endYear, endMonth, endDay)
+
+	dates, err := client.GetCalendar(&startString, &todayString)
+
+	log.Printf("%v", dates)
+	if err != nil {
+		log.Fatalf("there was an issue gathering the date %s", err)
+	}
+
+	openMarkets := make(map[time.Time]timeRange, 0)
+	lastDay := time.Time{}
+	dataPoints := int64(0)
+	// loop through array in reverse order to see which date fulfills our data requirements
+	for i := len(dates) - 1; i >= 0; i-- {
+		marketDate, err := time.Parse("2006-01-02", dates[i].Date)
+		marketOpen, err := time.Parse("15:04", dates[i].Open)
+		marketClose, err := time.Parse("15:04", dates[i].Close)
+
+		// todo dangerous and probably wrong - check with alpaca on calendar timezone to better determine
+		marketDate = time.Date(marketDate.Year(), marketDate.Month(), marketDate.Day(), marketDate.Hour(), marketDate.Minute(), marketDate.Second(), marketDate.Nanosecond(), time.Local)
+		marketOpen = time.Date(marketDate.Year(), marketDate.Month(), marketDate.Day(), marketOpen.Hour(), marketOpen.Minute(), marketOpen.Second(), marketOpen.Nanosecond(), time.Local)
+		marketClose = time.Date(marketDate.Year(), marketDate.Month(), marketDate.Day(), marketClose.Hour(), marketClose.Minute(), marketClose.Second(), marketClose.Nanosecond(), time.Local)
+
+		log.Printf("date: %s", marketDate)
+		if err != nil {
+			log.Fatalf("could not parse times given from calandar, %s", err)
+		}
+
+		if time.Now().After(marketDate) && time.Now().Before(marketOpen) {
+			log.Printf("skipping today becuase todays market hasnt opened yet, %s %s", time.Now(), marketDate)
+			continue
+		}
+
+		// check for last date
+		if lastDay.Before(marketClose) {
+			lastDay = marketClose
+		}
+
+		openMarkets[marketDate] = timeRange{
+			start: marketOpen.AddDate(marketDate.Year(), int(marketDate.Month()), marketDate.Day()),
+			end:   marketClose.AddDate(marketDate.Year(), int(marketDate.Month()), marketDate.Day()),
+		}
+
+		dataPoints += marketClose.Sub(marketOpen).Milliseconds() / period.Milliseconds()
+		log.Printf("number of datapoints %d - currently on date: %s", dataPoints, marketDate)
+		if dataPoints >= int64(limit) {
+			return marketOpen, lastDay, openMarkets
+		}
+	}
+
+	// if this didnt do what we want - just grab everything! that makes sense...right...right........right?
+	// todo please make better
+	log.Fatalf("couldnt determine start date")
+	return time.Time{}, time.Time{}, nil
+}
+
 func (g *Gatherer) gather(config GathererConfig) {
 	// determine wanted Time range
-	start := time.Now().Add(time.Duration(-1*config.Limit) * config.Period)
-	end := time.Now()
+	//magic number 4 is a multiplier to create the start time
+	start, end, marketTimes := findTimeRange(config.Limit, config.Period, config.Client)
+
+	for key, val := range marketTimes {
+		log.Printf("%s, %v", key, val)
+	}
+
+	log.Printf("start %s, end %s", start, end)
 
 	var requestListNew []timeRange
 	var requestListHistory []timeRange
@@ -128,6 +197,20 @@ func (g *Gatherer) gather(config GathererConfig) {
 	// transform data into canonical model
 	for symbol, bars := range results {
 		for _, bar := range bars {
+			// ignore this data if its time is outside of market hours
+			year, month, date := bar.GetTime().Date()
+			dateOfTrade := time.Date(year, month, date, 0, 0, 0, 0, time.Local)
+
+			if bar.GetTime().Before(marketTimes[dateOfTrade].start) {
+				log.Printf("ignoring this data becuase its before market hours, %s %s %s", bar.GetTime(), marketTimes[dateOfTrade].start, marketTimes[dateOfTrade].end)
+				continue
+			}
+
+			if bar.GetTime().After(marketTimes[dateOfTrade].end) {
+				log.Printf("ignoring this data becuase its after market hours, %s %s %s", bar.GetTime(), marketTimes[dateOfTrade].start, marketTimes[dateOfTrade].end)
+				continue
+			}
+
 			g.equityData[symbol] = append(g.equityData[symbol], Equity{
 				Name:      symbol,
 				Time:      bar.GetTime(),
@@ -141,12 +224,17 @@ func (g *Gatherer) gather(config GathererConfig) {
 		}
 	}
 
-	// sort data and backfill missing portions of data
+	log.Printf("%v", g.equityData)
+
+	// sort data
 	for symbol := range g.equityData {
 		sort.Slice(g.equityData[symbol], func(i, j int) bool {
 			return g.equityData[symbol][i].Time.Before(g.equityData[symbol][j].Time)
 		})
+	}
 
+	// backfill missing portions of data
+	for symbol := range g.equityData {
 		for i, equity := range g.equityData[symbol] {
 			//skip validation of the last segment since forward looking
 			if i >= len(g.equityData[symbol])-1 {
@@ -161,6 +249,8 @@ func (g *Gatherer) gather(config GathererConfig) {
 			}
 		}
 	}
+
+	log.Printf("%v", g.equityData)
 
 	// pacakge data
 	for _, symbol := range config.Symbols {

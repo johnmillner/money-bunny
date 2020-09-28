@@ -27,7 +27,7 @@ func main() {
 		EquityData: make(chan []gatherers.Equity, 100000),
 		Client:     *alpacaClient,
 		Symbols:    []string{"TSLA", "AAPL"},
-		Limit:      2000,
+		Limit:      5,
 		Period:     time.Minute,
 	}))
 

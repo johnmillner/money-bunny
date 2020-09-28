@@ -12,6 +12,7 @@ type Config interface {
 
 type Configurator struct {
 	Me        uuid.UUID
+	Module    string
 	ConfigIn  chan Config
 	ConfigOut chan Config
 	Config    Config

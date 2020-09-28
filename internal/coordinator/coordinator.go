@@ -15,6 +15,17 @@ func (c *Coordinator) GetConfigurator(id uuid.UUID) utils.Configurator {
 	return c.directory[id]
 }
 
+func (c *Coordinator) GetConfigurators(archetype string) []utils.Configurator {
+	configurators := make([]utils.Configurator, 0)
+	for _, configurator := range c.directory {
+		if configurator.Module == archetype {
+			configurators = append(configurators, configurator)
+		}
+	}
+
+	return configurators
+}
+
 func (c *Coordinator) NewConfigurator(initialConfig utils.Config) utils.Configurator {
 	configurator := utils.Configurator{
 		Me:        uuid.New(),

@@ -45,23 +45,26 @@ func Request(timeRanges []timeRange, config GathererConfig) map[string][]alpaca.
 	log.Printf("start %s, end %s", start.String(), end.String())
 
 	// determine the number of dataPoints between start and end
-	dataPoints := end.Sub(start).Seconds() / config.Period.Seconds()
+	dataPoints := int(end.Sub(start).Nanoseconds() / config.Period.Nanoseconds())
 	maxDataPoints := 1000
+
 	log.Printf("attempting to gather %v data points", dataPoints)
 
-	totalValues := make(map[string][]alpaca.Bar)
-	for i := int64(0); i < int64(dataPoints); i = i + int64(maxDataPoints) {
+	totalValues := make(map[string]map[int64]alpaca.Bar)
+	for i := 0; i < dataPoints; i = i + maxDataPoints {
 		// determine this requests limit
 		thisStart := start.Add(time.Duration(i) * config.Period)
-		thisEnd := end.Add(time.Duration(i+int64(maxDataPoints)-1) * config.Period)
+		thisLimit := int(end.Sub(thisStart).Nanoseconds() / config.Period.Nanoseconds())
+		if thisLimit > maxDataPoints {
+			thisLimit = maxDataPoints
+		}
 
 		// generate request
-		log.Printf("grabbing page of data")
+		log.Printf("grabbing page of data start: %s, limit:%d", thisStart, thisLimit)
 		values, err := config.Client.ListBars(symbols, alpaca.ListBarParams{
 			Timeframe: durationToTimeframe(config.Period),
 			StartDt:   &thisStart,
-			EndDt:     &thisEnd,
-			Limit:     &maxDataPoints,
+			Limit:     &thisLimit,
 		})
 
 		if err != nil {
@@ -70,9 +73,22 @@ func Request(timeRanges []timeRange, config GathererConfig) map[string][]alpaca.
 		}
 
 		for symbol, bars := range values {
-			totalValues[symbol] = append(totalValues[symbol], bars...)
+			if _, ok := totalValues[symbol]; !ok {
+				totalValues[symbol] = make(map[int64]alpaca.Bar)
+			}
+
+			for _, bar := range bars {
+				totalValues[symbol][bar.Time] = bar
+			}
 		}
 	}
 
-	return totalValues
+	deduppedValues := make(map[string][]alpaca.Bar)
+	for symbol, mapBars := range totalValues {
+		for _, bar := range mapBars {
+			deduppedValues[symbol] = append(deduppedValues[symbol], bar)
+		}
+	}
+
+	return deduppedValues
 }

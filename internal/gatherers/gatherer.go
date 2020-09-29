@@ -74,7 +74,7 @@ type timeRange struct {
 // will round up to the nearest start of the day
 func findTimeRange(limit int, period time.Duration, client alpaca.Client) (time.Time, time.Time, map[time.Time]timeRange) {
 	//guess that the max time is less than 5x what we want + plus an additional 4 days
-	startYear, startMonth, startDay := time.Now().Add(-1 * 5 * period).Add(-1 * 4 * 24 * time.Hour).Date()
+	startYear, startMonth, startDay := time.Now().Add(-1 * 5 * period).Add(-1 * 7 * 24 * time.Hour).Date()
 	endYear, endMonth, endDay := time.Now().Date()
 	startString := fmt.Sprintf("%d-%d-%d", startYear, startMonth, startDay)
 	todayString := fmt.Sprintf("%d-%d-%d", endYear, endMonth, endDay)
@@ -116,13 +116,17 @@ func findTimeRange(limit int, period time.Duration, client alpaca.Client) (time.
 		}
 
 		openMarkets[marketDate] = timeRange{
-			start: marketOpen.AddDate(marketDate.Year(), int(marketDate.Month()), marketDate.Day()),
-			end:   marketClose.AddDate(marketDate.Year(), int(marketDate.Month()), marketDate.Day()),
+			start: marketOpen,
+			end:   marketClose,
 		}
 
 		dataPoints += marketClose.Sub(marketOpen).Milliseconds() / period.Milliseconds()
 		log.Printf("number of datapoints %d - currently on date: %s", dataPoints, marketDate)
 		if dataPoints >= int64(limit) {
+			log.Printf("found range, %s-%s", marketOpen, lastDay)
+			for key, value := range openMarkets {
+				log.Printf("marketDate avaiable %s %v", key, value)
+			}
 			return marketOpen, lastDay, openMarkets
 		}
 	}
@@ -133,17 +137,7 @@ func findTimeRange(limit int, period time.Duration, client alpaca.Client) (time.
 	return time.Time{}, time.Time{}, nil
 }
 
-func (g *Gatherer) gather(config GathererConfig) {
-	// determine wanted Time range
-	//magic number 4 is a multiplier to create the start time
-	start, end, marketTimes := findTimeRange(config.Limit, config.Period, config.Client)
-
-	for key, val := range marketTimes {
-		log.Printf("%s, %v", key, val)
-	}
-
-	log.Printf("start %s, end %s", start, end)
-
+func (g *Gatherer) findRequestRanges(config GathererConfig, start time.Time, end time.Time) [][]timeRange {
 	var requestListNew []timeRange
 	var requestListHistory []timeRange
 	var requestListUpdate []timeRange
@@ -152,6 +146,7 @@ func (g *Gatherer) gather(config GathererConfig) {
 	for _, symbol := range config.Symbols {
 		// if symbol not in map at all - add total timeframe to request list
 		if _, ok := g.equityData[symbol]; !ok {
+			log.Printf("gathering new data for %s", symbol)
 			requestListNew = append(requestListNew, timeRange{
 				equity: symbol,
 				start:  start,
@@ -164,6 +159,7 @@ func (g *Gatherer) gather(config GathererConfig) {
 
 		// determine if we need prior data for this symbol
 		if equityHistory[0].Time.After(start) {
+			log.Printf("gathering historical data for %s", symbol)
 			requestListHistory = append(requestListHistory, timeRange{
 				equity: symbol,
 				start:  start,
@@ -173,6 +169,7 @@ func (g *Gatherer) gather(config GathererConfig) {
 
 		// determine if we need new data for this symbol
 		if equityHistory[len(equityHistory)-1].Time.Before(end) {
+			log.Printf("updating data for %s", symbol)
 			requestListUpdate = append(requestListUpdate, timeRange{
 				equity: symbol,
 				start:  equityHistory[len(equityHistory)-1].Time,
@@ -186,7 +183,18 @@ func (g *Gatherer) gather(config GathererConfig) {
 	requestRanges = append(requestRanges, chunkList(requestListHistory, config.Limit)...)
 	requestRanges = append(requestRanges, chunkList(requestListUpdate, config.Limit)...)
 
-	// request missing gaps in data and add to intermediary map
+	return requestRanges
+}
+
+func (g *Gatherer) gather(config GathererConfig) {
+	// determine wanted Time range
+	start, end, marketTimes := findTimeRange(config.Limit, config.Period, config.Client)
+
+	log.Printf("start %s, end %s", start, end)
+
+	requestRanges := g.findRequestRanges(config, start, end)
+
+	// request wanted data and add to intermediary map
 	results := make(map[string][]alpaca.Bar)
 	for _, requestRange := range requestRanges {
 		for symbol, bars := range Request(requestRange, config) {
@@ -198,22 +206,16 @@ func (g *Gatherer) gather(config GathererConfig) {
 	for symbol, bars := range results {
 		for _, bar := range bars {
 			// ignore this data if its time is outside of market hours
-			year, month, date := bar.GetTime().Date()
-			dateOfTrade := time.Date(year, month, date, 0, 0, 0, 0, time.Local)
+			barTime := bar.GetTime()
 
-			if bar.GetTime().Before(marketTimes[dateOfTrade].start) {
-				log.Printf("ignoring this data becuase its before market hours, %s %s %s", bar.GetTime(), marketTimes[dateOfTrade].start, marketTimes[dateOfTrade].end)
-				continue
-			}
-
-			if bar.GetTime().After(marketTimes[dateOfTrade].end) {
-				log.Printf("ignoring this data becuase its after market hours, %s %s %s", bar.GetTime(), marketTimes[dateOfTrade].start, marketTimes[dateOfTrade].end)
+			if !isMarketOpen(barTime, marketTimes) {
+				log.Printf("ignoring this data becuase its not during market hours, %s", barTime)
 				continue
 			}
 
 			g.equityData[symbol] = append(g.equityData[symbol], Equity{
 				Name:      symbol,
-				Time:      bar.GetTime(),
+				Time:      barTime,
 				Open:      bar.Open,
 				Close:     bar.Close,
 				Low:       bar.Low,
@@ -224,8 +226,6 @@ func (g *Gatherer) gather(config GathererConfig) {
 		}
 	}
 
-	log.Printf("%v", g.equityData)
-
 	// sort data
 	for symbol := range g.equityData {
 		sort.Slice(g.equityData[symbol], func(i, j int) bool {
@@ -233,29 +233,70 @@ func (g *Gatherer) gather(config GathererConfig) {
 		})
 	}
 
-	// backfill missing portions of data
+	// back fill missing portions of data
 	for symbol := range g.equityData {
-		for i, equity := range g.equityData[symbol] {
-			//skip validation of the last segment since forward looking
-			if i >= len(g.equityData[symbol])-1 {
-				continue
-			}
+		for i := 0; i < len(g.equityData[symbol])-1; i++ {
+			// if the expected next time is during market open and
+			// the next time is not the expected time - forward fill
+			currentTime := g.equityData[symbol][i].Time
+			expectedTime := currentTime.Add(config.Period)
+			nextTime := g.equityData[symbol][i+1].Time
+			if isMarketOpen(expectedTime, marketTimes) && nextTime.After(expectedTime) {
 
-			// if the element is not there - insert it into the array
-			if g.equityData[symbol][i+1].Time != equity.Time.Add(config.Period) {
-				g.equityData[symbol] = append(g.equityData[symbol], Equity{})
-				copy(g.equityData[symbol][i+1:], g.equityData[symbol][i:])
-				g.equityData[symbol][i+1] = g.equityData[symbol][i]
+				priorEquity := g.equityData[symbol][i]
+				log.Printf("forward fill needed: index: %d, current: %s, expected: %s, received: %s",
+					i, g.equityData[symbol][i].Time,
+					g.equityData[symbol][i].Time.Add(config.Period),
+					g.equityData[symbol][i+1].Time)
+
+				backFill := Equity{
+					Name:      priorEquity.Name,
+					Time:      expectedTime,
+					Open:      priorEquity.Open,
+					Close:     priorEquity.Close,
+					Low:       priorEquity.Low,
+					High:      priorEquity.High,
+					Volume:    priorEquity.Volume,
+					generated: true,
+				}
+
+				g.equityData[symbol] = Insert(g.equityData[symbol], i+1, backFill)
 			}
 		}
 	}
 
-	log.Printf("%v", g.equityData)
-
-	// pacakge data
+	// package data
 	for _, symbol := range config.Symbols {
+		log.Printf("%d", len(g.equityData[symbol]))
 		config.EquityData <- g.equityData[symbol][len(g.equityData[symbol])-config.Limit:]
 	}
+}
+
+func isMarketOpen(current time.Time, marketTimes map[time.Time]timeRange) bool {
+	dateOfTrade := time.Date(
+		current.Year(), current.Month(), current.Day(),
+		0, 0, 0, 0, time.Local)
+
+	if _, ok := marketTimes[dateOfTrade]; !ok {
+		return false
+	}
+
+	// include 9:30 - exclude 16:00
+	return current.After(marketTimes[dateOfTrade].start.Add(-1)) && current.Before(marketTimes[dateOfTrade].end)
+}
+
+func Insert(slice []Equity, i int, elems ...Equity) []Equity {
+	if elems == nil {
+		return slice
+	}
+	if i <= 0 {
+		return append(elems, slice...)
+	}
+	if i >= len(slice) {
+		return append(slice, elems...)
+	}
+
+	return append(slice[:i], append(elems, slice[i:]...)...)
 }
 
 func InitGatherer(configurator utils.Configurator) Gatherer {

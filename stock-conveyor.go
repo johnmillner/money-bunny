@@ -26,8 +26,8 @@ func main() {
 		Active:     true,
 		EquityData: make(chan []gatherers.Equity, 100000),
 		Client:     *alpacaClient,
-		Symbols:    []string{"TSLA", "AAPL"},
-		Limit:      5,
+		Symbols:    []string{"TSLA"},
+		Limit:      910,
 		Period:     time.Minute,
 	}))
 
@@ -39,21 +39,12 @@ func main() {
 		Active: false,
 	})
 
-	for simpleData := range coordinator.GetConfigurator(gatherer.Configurator.Me).Get().(gatherers.GathererConfig).EquityData {
-		j := 0
-		log.Printf("%d, %v", len(simpleData))
-		for i, equity := range simpleData {
-			if i == 0 {
-				continue
-			}
-
-			if equity.Time.Add(-1*time.Minute) != simpleData[i-1].Time {
-				log.Printf("sadness - missing data, expected %s got %s", equity.Time.Add(-1*time.Minute), simpleData[i-1].Time)
-				j++
-			}
-
+	for simpleData := range gatherer.Configurator.Get().(gatherers.GathererConfig).EquityData {
+		for _, equity := range simpleData {
+			log.Printf("%v", equity)
 		}
-		log.Printf("%d", j)
+		log.Printf("%d", len(simpleData))
+
 	}
 
 }

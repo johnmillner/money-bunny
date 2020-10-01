@@ -68,7 +68,7 @@ func InitCoordinator(coordinatorOutput chan utils.Config) (Coordinator, utils.Co
 
 func (c *Coordinator) configForwarder(configurator utils.Configurator) {
 	for config := range configurator.ConfigIn {
-		log.Printf("forwarding config %v+", config)
+		log.Printf("forwarding config %v", config)
 		c.directory[config.GetTo()].ConfigIn <- config
 	}
 }

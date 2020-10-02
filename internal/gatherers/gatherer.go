@@ -60,7 +60,7 @@ func (g *Gatherer) gather(config GathererConfig) {
 	for _, symbols := range chunkList(config.Symbols, 200) {
 		log.Printf("grabbing chunk of symbols %v", symbols)
 		go func(symbols []string) {
-			for _, equities := range gatherPage(symbols, config) {
+			for _, equities := range gatherPage(symbols, config, getBars) {
 				// send only the requested amount of information
 				startingIndex := len(equities) - config.Limit
 				if startingIndex < 0 {
@@ -73,13 +73,19 @@ func (g *Gatherer) gather(config GathererConfig) {
 	}
 }
 
-func gatherPage(symbols []string, config GathererConfig) [][]Equity {
-	// request the previous 1000 point
-	maxLimit := 1000
-	results, err := config.Client.ListBars(symbols, alpaca.ListBarParams{
+func getBars(config GathererConfig, symbols []string, limit int) (map[string][]alpaca.Bar, error) {
+	return config.Client.ListBars(symbols, alpaca.ListBarParams{
 		Timeframe: durationToTimeframe(config.Period),
-		Limit:     &maxLimit,
+		Limit:     &limit,
 	})
+}
+func gatherPage(
+	symbols []string,
+	config GathererConfig,
+	getBars func(config GathererConfig, symbols []string, limit int) (map[string][]alpaca.Bar, error)) [][]Equity {
+
+	// request the previous 1000 point
+	results, err := getBars(config, symbols, 1000)
 
 	if err != nil {
 		log.Panicf("could not gather bars from alpaca due to %s", err)

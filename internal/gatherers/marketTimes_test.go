@@ -72,6 +72,41 @@ func TestMarketTimes_IsMarketOpen_DuringMarket(t *testing.T) {
 		"market should be counted as open since date occurred during today's market")
 }
 
+func TestMarketTimes_IsMarketOpen_DuringLastMinuteOfMarket(t *testing.T) {
+	times := MarketTimes{
+		startRange:     time.Time{},
+		endRange:       time.Time{},
+		lock:           sync.RWMutex{},
+		marketTimesMap: make(map[time.Time]timeRange),
+	}
+
+	now := time.Now().Round(time.Minute)
+	times.marketTimesMap[time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 0, 0, 0, 0, time.Local)] = timeRange{
+		start: now.Add(-5 * time.Hour),
+		end:   now,
+	}
+
+	assert.True(t, times.IsMarketOpen(now.Add(-1*time.Minute)),
+		"market should be counted as open since date occurred during today's market")
+}
+
+func TestMarketTimes_IsMarketOpen_DuringFirstMinuteOfMarket(t *testing.T) {
+	times := MarketTimes{
+		startRange:     time.Time{},
+		endRange:       time.Time{},
+		lock:           sync.RWMutex{},
+		marketTimesMap: make(map[time.Time]timeRange),
+	}
+
+	times.marketTimesMap[time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 0, 0, 0, 0, time.Local)] = timeRange{
+		start: time.Now(),
+		end:   time.Now().Add(5 * time.Hour),
+	}
+
+	assert.True(t, times.IsMarketOpen(time.Now()),
+		"market should be counted as open since date occurred during today's market")
+}
+
 func TestMarketTimes_NewMarketTimes_BadCalendarCall(t *testing.T) {
 	times := MarketTimes{}
 	assert.Panics(t, func() {

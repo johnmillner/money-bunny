@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/google/uuid"
 	coordinatorLib "github.com/johnmillner/robo-macd/internal/coordinator"
 	"github.com/johnmillner/robo-macd/internal/gatherers"
 	"github.com/johnmillner/robo-macd/internal/utils"
@@ -13,32 +12,30 @@ import (
 )
 
 func main() {
-	alpacaClient := alpaca.NewClient(common.Credentials())
+	// setup coordinator and receive main's configurator
+	coordinator, mainConfigurator := coordinatorLib.InitCoordinator(make(chan utils.Config, 100))
 
-	configOut := make(chan utils.Config, 100)
-
-	coordinatorId := uuid.New()
-	coordinator, mainConfigurator := coordinatorLib.InitCoordinator(configOut)
-
+	//initialize the gatherer
 	gatherer := gatherers.InitGatherer(coordinator.NewConfigurator(gatherers.GathererConfig{
-		To:         coordinatorId,
-		From:       mainConfigurator.Me,
 		Active:     true,
 		EquityData: make(chan []gatherers.Equity, 100000),
-		Client:     *alpacaClient,
-		Symbols:    []string{"ABEO"},
+		Client:     *alpaca.NewClient(common.Credentials()),
+		Symbols:    []string{"TSLA"},
 		Limit:      500,
 		Period:     time.Minute,
 	}))
 
-	time.Sleep(1 * time.Second)
+	// sleep for just a moment to let the gatherer initialize before shutting it down next block
+	time.Sleep(time.Nanosecond)
 
+	// tell the gatherer to stop as an example
 	mainConfigurator.SendConfig(gatherers.GathererConfig{
 		To:     gatherer.Configurator.Me,
 		From:   mainConfigurator.Me,
 		Active: false,
 	})
 
+	// read through the output of the gatherer as an example
 	for simpleData := range gatherer.Configurator.Get().(gatherers.GathererConfig).EquityData {
 		for _, equity := range simpleData {
 			log.Printf("%v", equity)

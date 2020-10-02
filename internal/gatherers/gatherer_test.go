@@ -28,7 +28,7 @@ func TestInsert_Multiple(t *testing.T) {
 		Name: "4",
 	}}
 
-	assert.Equal(t, expected, Insert(original, 1, added...))
+	assert.Equal(t, expected, insert(original, 1, added...))
 }
 
 func TestInsert_Single(t *testing.T) {
@@ -50,7 +50,7 @@ func TestInsert_Single(t *testing.T) {
 		Name: "3",
 	}}
 
-	assert.Equal(t, expected, Insert(original, 1, added))
+	assert.Equal(t, expected, insert(original, 1, added))
 }
 
 func TestInsert_Nothing(t *testing.T) {
@@ -66,7 +66,7 @@ func TestInsert_Nothing(t *testing.T) {
 		Name: "2",
 	}}
 
-	assert.Equal(t, expected, Insert(original, 1))
+	assert.Equal(t, expected, insert(original, 1))
 }
 
 func TestInsert_Low(t *testing.T) {
@@ -88,7 +88,7 @@ func TestInsert_Low(t *testing.T) {
 		Name: "3",
 	}}
 
-	assert.Equal(t, expected, Insert(original, -1, added))
+	assert.Equal(t, expected, insert(original, -1, added))
 }
 
 func TestInsert_High(t *testing.T) {
@@ -110,5 +110,8 @@ func TestInsert_High(t *testing.T) {
 		Name: "3",
 	}}
 
-	assert.Equal(t, expected, Insert(original, 100, added))
+	assert.Equal(t, expected, insert(original, 100, added))
+}
+
+func TestAsdf(t *testing.T) {
 }

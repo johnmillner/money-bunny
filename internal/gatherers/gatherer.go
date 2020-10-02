@@ -82,7 +82,7 @@ func gatherPage(symbols []string, config GathererConfig) [][]Equity {
 	})
 
 	if err != nil {
-		log.Fatalf("could not gather bars from alpaca due to %s", err)
+		log.Panicf("could not gather bars from alpaca due to %s", err)
 	}
 
 	// find when the market is open
@@ -97,8 +97,8 @@ func gatherPage(symbols []string, config GathererConfig) [][]Equity {
 	for symbol, bars := range results {
 		waitGroup.Add(1)
 		go func(symbol string, bars []alpaca.Bar) {
+			defer waitGroup.Done()
 			equities = append(equities, filterByMarketOpen(symbol, bars, marketTimes))
-			waitGroup.Done()
 		}(symbol, bars)
 	}
 	waitGroup.Wait()
@@ -107,8 +107,9 @@ func gatherPage(symbols []string, config GathererConfig) [][]Equity {
 	for i, equityList := range equities {
 		waitGroup.Add(1)
 		go func(i int, equityList []Equity) {
+			defer waitGroup.Done()
+
 			equities[i] = fillGaps(equityList, marketTimes, config.Period)
-			waitGroup.Done()
 		}(i, equityList)
 	}
 	waitGroup.Wait()
@@ -135,7 +136,7 @@ func fillGaps(equities []Equity, marketTimes *MarketTimes, period time.Duration)
 				generated: true,
 			}
 
-			equities = Insert(equities, i+1, backFill)
+			equities = insert(equities, i+1, backFill)
 		}
 	}
 
@@ -162,7 +163,7 @@ func filterByMarketOpen(symbol string, bars []alpaca.Bar, marketTimes *MarketTim
 	return equities
 }
 
-func Insert(equities []Equity, i int, equity ...Equity) []Equity {
+func insert(equities []Equity, i int, equity ...Equity) []Equity {
 	if equity == nil {
 		return equities
 	}
@@ -189,7 +190,7 @@ func durationToTimeframe(dur time.Duration) string {
 	case time.Hour * 24:
 		return string(alpaca.Day1)
 	default:
-		log.Fatalf("cannot translate duration given to alpaca timeframe, given: %f (in seconds) "+
+		log.Panicf("cannot translate duration given to alpaca timeframe, given: %f (in seconds) "+
 			"- only acceptable durations are 1min, 5min, 15min, 1day", dur.Seconds())
 		return ""
 	}
@@ -215,8 +216,4 @@ func (c GathererConfig) GetTo() uuid.UUID {
 
 func (c GathererConfig) GetFrom() uuid.UUID {
 	return c.To
-}
-
-func (c GathererConfig) IsActive() bool {
-	return c.Active
 }

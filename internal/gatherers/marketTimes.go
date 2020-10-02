@@ -21,6 +21,10 @@ type timeRange struct {
 	end   time.Time
 }
 
+type Calendar interface {
+	getCalendar(start, end string) ([]alpaca.CalendarDay, error)
+}
+
 func NewMarketTimes(startRange, endRange time.Time) *MarketTimes {
 	marketTimes := MarketTimes{
 		startRange: startRange,
@@ -28,7 +32,7 @@ func NewMarketTimes(startRange, endRange time.Time) *MarketTimes {
 		lock:       sync.RWMutex{},
 	}
 
-	marketTimes.marketTimesMap = marketTimes.findMarketTimes(startRange, endRange)
+	marketTimes.marketTimesMap = marketTimes.findMarketTimes(startRange, endRange, getCalendar)
 
 	return &marketTimes
 }
@@ -49,31 +53,47 @@ func (m *MarketTimes) IsMarketOpen(current time.Time) bool {
 	return false
 }
 
-func (m *MarketTimes) findMarketTimes(startTime, endTime time.Time) map[time.Time]timeRange {
-	startDateString := fmt.Sprintf("%d-%d-%d", startTime.Year(), startTime.Month(), startTime.Day())
-	endDateString := fmt.Sprintf("%d-%d-%d", endTime.Year(), endTime.Month(), endTime.Day())
+func getCalendar(start, end string) ([]alpaca.CalendarDay, error) {
+	return alpaca.GetCalendar(&start, &end)
+}
 
-	marketTimesRaw, _ := alpaca.GetCalendar(&startDateString, &endDateString)
-	marketTimes := make(map[time.Time]timeRange)
-	for _, calendarDay := range marketTimesRaw {
-		go func(calendar alpaca.CalendarDay) {
-			marketDate, err := time.Parse("2006-01-02", calendar.Date)
-			marketOpen, err := time.Parse("15:04", calendar.Open)
-			marketClose, err := time.Parse("15:04", calendar.Close)
+func (m *MarketTimes) findMarketTimes(startTime, endTime time.Time, calendar func(start, end string) ([]alpaca.CalendarDay, error)) map[time.Time]timeRange {
+	marketTimesRaw, err := calendar(
+		fmt.Sprintf("%d-%d-%d", startTime.Year(), startTime.Month(), startTime.Day()),
+		fmt.Sprintf("%d-%d-%d", endTime.Year(), endTime.Month(), endTime.Day()))
 
-			if err != nil {
-				log.Fatalf("could not parse times given from calandar, %s", err)
-			}
-
-			m.lock.Lock()
-			marketTimes[time.Date(marketDate.Year(), marketDate.Month(), marketDate.Day(), 0, 0, 0, 0, time.Local)] = timeRange{
-				start: time.Date(marketDate.Year(), marketDate.Month(), marketDate.Day(), marketOpen.Hour(), marketOpen.Minute(), marketOpen.Second(), 0, time.Local),
-				end:   time.Date(marketDate.Year(), marketDate.Month(), marketDate.Day(), marketClose.Hour(), marketClose.Minute(), marketClose.Second(), 0, time.Local),
-			}
-			m.lock.Unlock()
-
-		}(calendarDay)
+	if err != nil {
+		log.Panicf("could not get calandar dates for market open due to %s", err)
 	}
+
+	marketTimes := make(map[time.Time]timeRange)
+	waitGroup := sync.WaitGroup{}
+	for _, calendarDay := range marketTimesRaw {
+		marketOpen, err := time.ParseInLocation("2006-01-0215:04", calendarDay.Date+calendarDay.Open, time.Local)
+		marketClose, err := time.ParseInLocation("2006-01-0215:04", calendarDay.Date+calendarDay.Close, time.Local)
+
+		marketTimeRange := timeRange{
+			start: marketOpen,
+			end:   marketClose,
+		}
+
+		if err != nil {
+			log.Panicf("could not parse calendar dates due to %s", err)
+		}
+
+		waitGroup.Add(1)
+		go func(marketTimeRange timeRange) {
+			defer waitGroup.Done()
+			m.lock.Lock()
+			defer m.lock.Unlock()
+			marketTimes[time.Date(
+				marketTimeRange.start.Year(),
+				marketTimeRange.start.Month(),
+				marketTimeRange.start.Day(),
+				0, 0, 0, 0, time.Local)] = marketTimeRange
+		}(marketTimeRange)
+	}
+	waitGroup.Wait()
 
 	return marketTimes
 }

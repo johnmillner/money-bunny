@@ -2,7 +2,10 @@ package gatherers
 
 import (
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
-	"github.com/alpacahq/alpaca-trade-api-go/common"
+	"github.com/google/uuid"
+	"github.com/johnmillner/robo-macd/internal/alpaca_wrapper"
+	"github.com/johnmillner/robo-macd/internal/coordinator"
+	"github.com/johnmillner/robo-macd/internal/utils"
 	"github.com/stretchr/testify/assert"
 	"log"
 	"testing"
@@ -115,18 +118,6 @@ func TestInsert_High(t *testing.T) {
 	}}
 
 	assert.Equal(t, expected, insert(original, 100, added))
-}
-
-func TestGatherer_DurationToTimeframe(t *testing.T) {
-	assert.Equal(t, "1Min", durationToTimeframe(time.Minute))
-	assert.Equal(t, "5Min", durationToTimeframe(5*time.Minute))
-	assert.Equal(t, "15Min", durationToTimeframe(15*time.Minute))
-	assert.Equal(t, "1H", durationToTimeframe(time.Hour))
-	assert.Equal(t, "1D", durationToTimeframe(24*time.Hour))
-
-	assert.Panics(t, func() {
-		_ = durationToTimeframe(2 * time.Minute)
-	})
 }
 
 func TestGatherer_ChunkList_NoChunkingNeeded(t *testing.T) {
@@ -336,26 +327,159 @@ func TestGatherer_FillGaps_lastMinuteOfMarketMissingAndFills(t *testing.T) {
 	assert.Equal(t, expected, fillGaps(equities, &times, time.Minute))
 }
 
-func mockGetBars(_ GathererConfig, _ []string, _ int) (map[string][]alpaca.Bar, error) {
-	bars := make(map[string][]alpaca.Bar)
-	bars["TSLA"] = []alpaca.Bar{{
-		Time: time.Now().Add(-3 * time.Minute).Round(time.Minute).Unix(),
-		Open: 1,
-	}, {
-		Time: time.Now().Add(-1 * time.Minute).Round(time.Minute).Unix(),
-		Open: 3,
-	}}
-	return bars, nil
-
-	//todo
-}
-
 func TestGather_GatherPage_Success(t *testing.T) {
 	equities := gatherPage([]string{"TSLA"}, GathererConfig{
-		Client: *alpaca.NewClient(common.Credentials()),
 		Period: time.Minute,
-	}, mockGetBars)
+		Alpaca: alpaca_wrapper.MockedAlpaca{
+			Bars:     alpaca_wrapper.MockGetBars,
+			Calendar: alpaca_wrapper.MockCalander,
+		},
+	})
 
-	log.Printf("todo %v", equities)
+	log.Printf("%v", equities)
 
+	assert.Equal(t, 1, len(equities))
+	assert.Equal(t, 3, len(equities[0]))
+	assert.True(t, equities[0][1].generated)
+}
+
+func TestGather_GatherPage_Failure(t *testing.T) {
+	assert.Panics(t, func() {
+		gatherPage([]string{"TSLA"}, GathererConfig{
+			Period: time.Minute,
+			Alpaca: alpaca_wrapper.MockedAlpaca{
+				Bars:     alpaca_wrapper.MockGetBarsFail,
+				Calendar: alpaca_wrapper.MockCalander,
+			},
+		})
+	})
+}
+
+func TestGather_Gather_OverLimit(t *testing.T) {
+	g := Gatherer{}
+	output := make(chan []Equity)
+	g.gather(GathererConfig{
+		EquityData: output,
+		Symbols:    []string{"TSLA"},
+		Period:     time.Minute,
+		Limit:      2,
+		Alpaca: alpaca_wrapper.MockedAlpaca{
+			Bars:     alpaca_wrapper.MockGetBars,
+			Calendar: alpaca_wrapper.MockCalander,
+		},
+	})
+
+	equities := <-output
+
+	assert.Equal(t, 2, len(equities))
+}
+
+func TestGather_Gather_UnderLimit(t *testing.T) {
+	g := Gatherer{}
+	output := make(chan []Equity)
+	g.gather(GathererConfig{
+		EquityData: output,
+		Symbols:    []string{"TSLA"},
+		Period:     time.Minute,
+		Limit:      100,
+		Alpaca: alpaca_wrapper.MockedAlpaca{
+			Bars:     alpaca_wrapper.MockGetBars,
+			Calendar: alpaca_wrapper.MockCalander,
+		},
+	})
+
+	equities := <-output
+
+	assert.Equal(t, 3, len(equities))
+}
+
+func TestGather_InitGather_firstPage(t *testing.T) {
+	output := make(chan []Equity)
+
+	InitGatherer(utils.Configurator{
+		Me:        uuid.UUID{},
+		Module:    "gatherer",
+		ConfigIn:  make(chan utils.Config),
+		ConfigOut: nil,
+		Config: GathererConfig{
+			Active:     true,
+			EquityData: output,
+			Symbols:    []string{"TSLA"},
+			Period:     time.Minute,
+			Limit:      100,
+			Alpaca: alpaca_wrapper.MockedAlpaca{
+				Bars:     alpaca_wrapper.MockGetBars,
+				Calendar: alpaca_wrapper.MockCalander,
+			},
+		},
+	})
+
+	equities := <-output
+
+	assert.Equal(t, 3, len(equities))
+}
+
+func TestGather_InitGather_Shutdown(t *testing.T) {
+	configIn := make(chan utils.Config)
+	configOut := make(chan utils.Config)
+
+	InitGatherer(utils.Configurator{
+		Me:        uuid.UUID{},
+		Module:    "gatherer",
+		ConfigIn:  configIn,
+		ConfigOut: configOut,
+		Config:    GathererConfig{},
+	})
+
+	messageOut := <-configOut
+	casted, ok := messageOut.(coordinator.Shutdown)
+	assert.True(t, ok)
+	assert.True(t, casted.Shutdown)
+}
+
+func TestGather_InitGather_firstPageThenShutdown(t *testing.T) {
+	output := make(chan []Equity)
+	configIn := make(chan utils.Config)
+	configOut := make(chan utils.Config)
+
+	InitGatherer(utils.Configurator{
+		Me:        uuid.UUID{},
+		Module:    "gatherer",
+		ConfigIn:  configIn,
+		ConfigOut: configOut,
+		Config: GathererConfig{
+			Active:     true,
+			EquityData: output,
+			Symbols:    []string{"TSLA"},
+			Period:     time.Minute,
+			Limit:      100,
+			Alpaca: alpaca_wrapper.MockedAlpaca{
+				Bars:     alpaca_wrapper.MockGetBars,
+				Calendar: alpaca_wrapper.MockCalander,
+			},
+		},
+	})
+
+	equities := <-output
+
+	assert.Equal(t, 3, len(equities))
+
+	configIn <- GathererConfig{}
+
+	messageOut := <-configOut
+	casted, ok := messageOut.(coordinator.Shutdown)
+	assert.True(t, ok)
+	assert.True(t, casted.Shutdown)
+}
+
+func TestGathererConfig_GetToFrom(t *testing.T) {
+	to := uuid.New()
+	from := uuid.New()
+	gc := GathererConfig{
+		To:   to,
+		From: from,
+	}
+
+	assert.Equal(t, to, gc.GetTo())
+	assert.Equal(t, from, gc.GetFrom())
 }

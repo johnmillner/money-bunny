@@ -3,6 +3,7 @@ package gatherers
 import (
 	"fmt"
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
+	alpaca2 "github.com/johnmillner/robo-macd/internal/alpaca_wrapper"
 	"log"
 	"sync"
 	"time"
@@ -25,14 +26,14 @@ type Calendar interface {
 	getCalendar(start, end string) ([]alpaca.CalendarDay, error)
 }
 
-func NewMarketTimes(startRange, endRange time.Time) *MarketTimes {
+func NewMarketTimes(startRange, endRange time.Time, alpaca alpaca2.AlpacaInterface) *MarketTimes {
 	marketTimes := MarketTimes{
 		startRange: startRange,
 		endRange:   endRange,
 		lock:       sync.RWMutex{},
 	}
 
-	marketTimes.marketTimesMap = marketTimes.findMarketTimes(startRange, endRange, getCalendar)
+	marketTimes.marketTimesMap = marketTimes.findMarketTimes(startRange, endRange, alpaca)
 
 	return &marketTimes
 }
@@ -53,12 +54,8 @@ func (m *MarketTimes) IsMarketOpen(current time.Time) bool {
 	return false
 }
 
-func getCalendar(start, end string) ([]alpaca.CalendarDay, error) {
-	return alpaca.GetCalendar(&start, &end)
-}
-
-func (m *MarketTimes) findMarketTimes(startTime, endTime time.Time, calendar func(start, end string) ([]alpaca.CalendarDay, error)) map[time.Time]timeRange {
-	marketTimesRaw, err := calendar(
+func (m *MarketTimes) findMarketTimes(startTime, endTime time.Time, alpaca alpaca2.AlpacaInterface) map[time.Time]timeRange {
+	marketTimesRaw, err := alpaca.GetCalendar(
 		fmt.Sprintf("%d-%d-%d", startTime.Year(), startTime.Month(), startTime.Day()),
 		fmt.Sprintf("%d-%d-%d", endTime.Year(), endTime.Month(), endTime.Day()))
 

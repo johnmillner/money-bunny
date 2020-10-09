@@ -3,6 +3,7 @@ package gatherers
 import (
 	"errors"
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
+	"github.com/johnmillner/robo-macd/internal/alpaca_wrapper"
 	"github.com/stretchr/testify/assert"
 	"sync"
 	"testing"
@@ -110,8 +111,11 @@ func TestMarketTimes_IsMarketOpen_DuringFirstMinuteOfMarket(t *testing.T) {
 func TestMarketTimes_NewMarketTimes_BadCalendarCall(t *testing.T) {
 	times := MarketTimes{}
 	assert.Panics(t, func() {
-		_ = times.findMarketTimes(time.Now(), time.Now(), func(start, end string) ([]alpaca.CalendarDay, error) {
-			return nil, errors.New("something bad happening")
+		_ = times.findMarketTimes(time.Now(), time.Now(), alpaca_wrapper.MockedAlpaca{
+			Bars: nil,
+			Calendar: func(start, end string) ([]alpaca.CalendarDay, error) {
+				return nil, errors.New("something bad happening")
+			},
 		})
 	})
 }
@@ -119,26 +123,33 @@ func TestMarketTimes_NewMarketTimes_BadCalendarCall(t *testing.T) {
 func TestMarketTimes_NewMarketTimes_UnableToParseDates(t *testing.T) {
 	times := MarketTimes{}
 	assert.Panics(t, func() {
-		_ = times.findMarketTimes(time.Now(), time.Now(), func(start, end string) ([]alpaca.CalendarDay, error) {
-			return []alpaca.CalendarDay{{
-				Date:  "asdf",
-				Open:  "asdf",
-				Close: "asdf",
-			}}, nil
+		_ = times.findMarketTimes(time.Now(), time.Now(), alpaca_wrapper.MockedAlpaca{
+			Bars: nil,
+			Calendar: func(start, end string) ([]alpaca.CalendarDay, error) {
+				return []alpaca.CalendarDay{{
+					Date:  "asdf",
+					Open:  "asdf",
+					Close: "asdf",
+				}}, nil
+			},
 		})
 	})
 }
 
-func TestMarketTimes_NewMarketTimes_GathersRangeExpected(t *testing.T) {
-	times := NewMarketTimes(time.Now().Add(-5*24*time.Hour), time.Now())
-
-	counter := 0
-	for date, timeRange := range times.marketTimesMap {
-		assert.False(t, date.Weekday() == time.Saturday || date.Weekday() == time.Sunday)
-		assert.True(t, timeRange.start == time.Date(date.Year(), date.Month(), date.Day(), 9, 30, 0, 0, time.Local))
-		assert.True(t, timeRange.end == time.Date(date.Year(), date.Month(), date.Day(), 16, 0, 0, 0, time.Local))
-		counter++
-	}
-
-	assert.LessOrEqual(t, counter, 5)
-}
+// todo turn into proper integration/contract test in alpaca_wrapper
+//func TestMarketTimes_NewMarketTimes_GathersRangeExpected(t *testing.T) {
+//	times := NewMarketTimes(time.Now().Add(-5*24*time.Hour), time.Now(), alpaca_wrapper.MockedAlpaca{
+//		Bars:     alpaca_wrapper.MockGetBars,
+//		Calendar: alpaca_wrapper.MockCalander,
+//	})
+//
+//	counter := 0
+//	for date, timeRange := range times.marketTimesMap {
+//		assert.False(t, date.Weekday() == time.Saturday || date.Weekday() == time.Sunday)
+//		assert.True(t, timeRange.start == time.Date(date.Year(), date.Month(), date.Day(), 9, 30, 0, 0, time.Local))
+//		assert.True(t, timeRange.end == time.Date(date.Year(), date.Month(), date.Day(), 16, 0, 0, 0, time.Local))
+//		counter++
+//	}
+//
+//	assert.LessOrEqual(t, counter, 5)
+//}

@@ -1,14 +1,12 @@
 package main
 
 import (
+	"github.com/johnmillner/robo-macd/internal/alpaca_wrapper"
 	coordinatorLib "github.com/johnmillner/robo-macd/internal/coordinator"
 	"github.com/johnmillner/robo-macd/internal/gatherers"
 	"github.com/johnmillner/robo-macd/internal/utils"
 	"log"
 	"time"
-
-	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
-	"github.com/alpacahq/alpaca-trade-api-go/common"
 )
 
 func main() {
@@ -19,10 +17,9 @@ func main() {
 	gatherer := gatherers.InitGatherer(coordinator.NewConfigurator(gatherers.GathererConfig{
 		Active:     true,
 		EquityData: make(chan []gatherers.Equity, 100000),
-		Client:     *alpaca.NewClient(common.Credentials()),
-		Symbols:    []string{"TSLA"},
-		Limit:      500,
-		Period:     time.Minute,
+		Alpaca:     alpaca_wrapper.Alpaca{},
+		Period:     0,
+		Limit:      0,
 	}))
 
 	// sleep for just a moment to let the gatherer initialize before shutting it down next block

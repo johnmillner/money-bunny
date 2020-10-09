@@ -3,6 +3,8 @@ package gatherers
 import (
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 	"github.com/google/uuid"
+	"github.com/johnmillner/robo-macd/internal/alpaca_wrapper"
+	"github.com/johnmillner/robo-macd/internal/coordinator"
 	"github.com/johnmillner/robo-macd/internal/utils"
 	"log"
 	"sync"
@@ -30,11 +32,12 @@ type GathererConfig struct {
 	Active bool
 
 	EquityData chan []Equity
-	Client     alpaca.Client
 
 	Symbols []string
 	Period  time.Duration
 	Limit   int
+
+	Alpaca alpaca_wrapper.AlpacaInterface
 }
 
 func InitGatherer(configurator utils.Configurator) Gatherer {
@@ -49,7 +52,11 @@ func InitGatherer(configurator utils.Configurator) Gatherer {
 			time.Sleep(config.Period)
 		}
 
-		log.Printf("shutting down fetcher %s", configurator.Me)
+		log.Printf("shutting down gatherer %s", configurator.Me)
+		configurator.SendConfig(coordinator.Shutdown{
+			From:     configurator.Me,
+			Shutdown: true,
+		})
 	}()
 
 	return g
@@ -60,7 +67,7 @@ func (g *Gatherer) gather(config GathererConfig) {
 	for _, symbols := range chunkList(config.Symbols, 200) {
 		log.Printf("grabbing chunk of symbols %v", symbols)
 		go func(symbols []string) {
-			for _, equities := range gatherPage(symbols, config, getBars) {
+			for _, equities := range gatherPage(symbols, config) {
 				// send only the requested amount of information
 				startingIndex := len(equities) - config.Limit
 				if startingIndex < 0 {
@@ -73,28 +80,20 @@ func (g *Gatherer) gather(config GathererConfig) {
 	}
 }
 
-func getBars(config GathererConfig, symbols []string, limit int) (map[string][]alpaca.Bar, error) {
-	return config.Client.ListBars(symbols, alpaca.ListBarParams{
-		Timeframe: durationToTimeframe(config.Period),
-		Limit:     &limit,
-	})
-}
-func gatherPage(
-	symbols []string,
-	config GathererConfig,
-	getBars func(config GathererConfig, symbols []string, limit int) (map[string][]alpaca.Bar, error)) [][]Equity {
+func gatherPage(symbols []string, config GathererConfig) [][]Equity {
 
 	// request the previous 1000 point
-	results, err := getBars(config, symbols, 1000)
+	results, err := config.Alpaca.GetBars(config.Period, symbols, 1000)
 
 	if err != nil {
-		log.Panicf("could not gather bars from alpaca due to %s", err)
+		log.Panicf("could not gather bars from alpaca_wrapper due to %s", err)
 	}
 
 	// find when the market is open
 	marketTimes := NewMarketTimes(
 		results[symbols[0]][0].GetTime(),
-		results[symbols[0]][len(results[symbols[0]])-1].GetTime())
+		results[symbols[0]][len(results[symbols[0]])-1].GetTime(),
+		config.Alpaca)
 
 	waitGroup := sync.WaitGroup{}
 
@@ -183,25 +182,6 @@ func insert(equities []Equity, i int, equity ...Equity) []Equity {
 	return append(equities[:i], append(equity, equities[i:]...)...)
 }
 
-func durationToTimeframe(dur time.Duration) string {
-	switch dur {
-	case time.Minute:
-		return string(alpaca.Min1)
-	case time.Minute * 5:
-		return string(alpaca.Min5)
-	case time.Minute * 15:
-		return string(alpaca.Min15)
-	case time.Hour:
-		return string(alpaca.Hour1)
-	case time.Hour * 24:
-		return string(alpaca.Day1)
-	default:
-		log.Panicf("cannot translate duration given to alpaca timeframe, given: %f (in seconds) "+
-			"- only acceptable durations are 1min, 5min, 15min, 1day", dur.Seconds())
-		return ""
-	}
-}
-
 func chunkList(list []string, chunkSize int) [][]string {
 	var chunks [][]string
 	for i := 0; i < len(list); i += chunkSize {
@@ -221,5 +201,5 @@ func (c GathererConfig) GetTo() uuid.UUID {
 }
 
 func (c GathererConfig) GetFrom() uuid.UUID {
-	return c.To
+	return c.From
 }

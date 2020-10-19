@@ -18,7 +18,7 @@ func TestMarketTimes_IsMarketOpen_DateNotFound(t *testing.T) {
 		marketTimesMap: make(map[time.Time]timeRange),
 	}
 
-	assert.False(t, times.IsMarketOpen(time.Now()),
+	assert.False(t, times.isMarketOpen(time.Now()),
 		"market should be counted as closed since date not in scope")
 }
 
@@ -35,7 +35,7 @@ func TestMarketTimes_IsMarketOpen_BeforeMarket(t *testing.T) {
 		end:   time.Now().Add(10 * time.Hour),
 	}
 
-	assert.False(t, times.IsMarketOpen(time.Now()),
+	assert.False(t, times.isMarketOpen(time.Now()),
 		"market should be counted as closed since date occurred before today's market")
 }
 
@@ -52,7 +52,7 @@ func TestMarketTimes_IsMarketOpen_AfterMarket(t *testing.T) {
 		end:   time.Now().Add(-10 * time.Hour),
 	}
 
-	assert.False(t, times.IsMarketOpen(time.Now()),
+	assert.False(t, times.isMarketOpen(time.Now()),
 		"market should be counted as closed since date occurred after today's market")
 }
 
@@ -69,7 +69,7 @@ func TestMarketTimes_IsMarketOpen_DuringMarket(t *testing.T) {
 		end:   time.Now().Add(10 * time.Hour),
 	}
 
-	assert.True(t, times.IsMarketOpen(time.Now()),
+	assert.True(t, times.isMarketOpen(time.Now()),
 		"market should be counted as open since date occurred during today's market")
 }
 
@@ -87,7 +87,7 @@ func TestMarketTimes_IsMarketOpen_DuringLastMinuteOfMarket(t *testing.T) {
 		end:   now,
 	}
 
-	assert.True(t, times.IsMarketOpen(now.Add(-1*time.Minute)),
+	assert.True(t, times.isMarketOpen(now.Add(-1*time.Minute)),
 		"market should be counted as open since date occurred during today's market")
 }
 
@@ -104,7 +104,7 @@ func TestMarketTimes_IsMarketOpen_DuringFirstMinuteOfMarket(t *testing.T) {
 		end:   time.Now().Add(5 * time.Hour),
 	}
 
-	assert.True(t, times.IsMarketOpen(time.Now()),
+	assert.True(t, times.isMarketOpen(time.Now()),
 		"market should be counted as open since date occurred during today's market")
 }
 
@@ -138,9 +138,9 @@ func TestMarketTimes_NewMarketTimes_UnableToParseDates(t *testing.T) {
 
 // todo turn into proper integration/contract test in alpaca_wrapper
 //func TestMarketTimes_NewMarketTimes_GathersRangeExpected(t *testing.T) {
-//	times := NewMarketTimes(time.Now().Add(-5*24*time.Hour), time.Now(), alpaca_wrapper.MockedAlpaca{
+//	times := newMarketTimes(time.Now().Add(-5*24*time.Hour), time.Now(), alpaca_wrapper.MockedAlpaca{
 //		Bars:     alpaca_wrapper.MockGetBars,
-//		Calendar: alpaca_wrapper.MockCalander,
+//		Calendar: alpaca_wrapper.MockCalendar,
 //	})
 //
 //	counter := 0

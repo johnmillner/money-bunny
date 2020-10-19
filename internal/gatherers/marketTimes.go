@@ -2,7 +2,6 @@ package gatherers
 
 import (
 	"fmt"
-	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 	alpaca2 "github.com/johnmillner/robo-macd/internal/alpaca_wrapper"
 	"log"
 	"sync"
@@ -22,11 +21,7 @@ type timeRange struct {
 	end   time.Time
 }
 
-type Calendar interface {
-	getCalendar(start, end string) ([]alpaca.CalendarDay, error)
-}
-
-func NewMarketTimes(startRange, endRange time.Time, alpaca alpaca2.AlpacaInterface) *MarketTimes {
+func newMarketTimes(startRange, endRange time.Time, alpaca alpaca2.AlpacaInterface) *MarketTimes {
 	marketTimes := MarketTimes{
 		startRange: startRange,
 		endRange:   endRange,
@@ -38,7 +33,7 @@ func NewMarketTimes(startRange, endRange time.Time, alpaca alpaca2.AlpacaInterfa
 	return &marketTimes
 }
 
-func (m *MarketTimes) IsMarketOpen(current time.Time) bool {
+func (m *MarketTimes) isMarketOpen(current time.Time) bool {
 	dateOfTrade := time.Date(
 		current.Year(), current.Month(), current.Day(),
 		0, 0, 0, 0, time.Local)

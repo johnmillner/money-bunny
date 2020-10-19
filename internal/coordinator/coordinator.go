@@ -7,68 +7,58 @@ import (
 )
 
 type Coordinator struct {
-	directory    map[uuid.UUID]utils.Configurator
-	configurator utils.Configurator
+	directory map[uuid.UUID]utils.Messenger
+	messenger utils.Messenger
 }
 
-func (c *Coordinator) GetConfigurator(id uuid.UUID) utils.Configurator {
+func (c *Coordinator) GetMessenger(id uuid.UUID) utils.Messenger {
 	return c.directory[id]
 }
 
-func (c *Coordinator) GetConfigurators(archetype string) []utils.Configurator {
-	configurators := make([]utils.Configurator, 0)
-	for _, configurator := range c.directory {
-		if configurator.Module == archetype {
-			configurators = append(configurators, configurator)
-		}
+func (c *Coordinator) NewMessenger(initialMessage utils.Message) utils.Messenger {
+	id := uuid.New()
+
+	c.directory[id] = utils.Messenger{
+		Me:      id,
+		Inbox:   make(chan utils.Message, 100),
+		Outbox:  c.messenger.Inbox,
+		Current: initialMessage,
 	}
 
-	return configurators
+	return c.directory[id]
 }
 
-func (c *Coordinator) NewConfigurator(initialConfig utils.Config) utils.Configurator {
-	configurator := utils.Configurator{
-		Me:        uuid.New(),
-		ConfigIn:  make(chan utils.Config, 100),
-		ConfigOut: c.configurator.ConfigIn,
-		Config:    initialConfig,
-	}
-
-	c.directory[configurator.Me] = configurator
-	return configurator
-}
-
-func InitCoordinator(coordinatorOutput chan utils.Config) (Coordinator, utils.Configurator) {
+func InitCoordinator(coordinatorOutput chan utils.Message) (Coordinator, utils.Messenger) {
 	coordinator := Coordinator{
-		directory: make(map[uuid.UUID]utils.Configurator),
-		configurator: utils.Configurator{
-			Me:        uuid.New(),
-			ConfigIn:  make(chan utils.Config, 100),
-			ConfigOut: coordinatorOutput,
+		directory: make(map[uuid.UUID]utils.Messenger),
+		messenger: utils.Messenger{
+			Me:     uuid.New(),
+			Inbox:  make(chan utils.Message, 100),
+			Outbox: coordinatorOutput,
 		},
 	}
 
 	// create shell for ArchetypeMain (that inits Coordinator)
 	mainId := uuid.New()
-	coordinator.directory[mainId] = utils.Configurator{
-		Me:        mainId,
-		ConfigIn:  make(chan utils.Config, 100),
-		ConfigOut: coordinator.configurator.ConfigIn,
+	coordinator.directory[mainId] = utils.Messenger{
+		Me:     mainId,
+		Inbox:  make(chan utils.Message, 100),
+		Outbox: coordinator.messenger.Inbox,
 	}
 
-	log.Printf("coordinator id: %s", coordinator.configurator.Me)
+	log.Printf("coordinator id: %s", coordinator.messenger.Me)
 	log.Printf("main id: %s", mainId)
 
 	// add the coordinators coordinatorConfigurator to the directory
-	coordinator.directory[coordinator.configurator.Me] = coordinator.configurator
+	coordinator.directory[coordinator.messenger.Me] = coordinator.messenger
 
-	go coordinator.configForwarder(coordinator.configurator)
-	return coordinator, coordinator.GetConfigurator(mainId)
+	go coordinator.configForwarder(coordinator.messenger)
+	return coordinator, coordinator.GetMessenger(mainId)
 }
 
-func (c *Coordinator) configForwarder(configurator utils.Configurator) {
-	for config := range configurator.ConfigIn {
+func (c *Coordinator) configForwarder(configurator utils.Messenger) {
+	for config := range configurator.Inbox {
 		log.Printf("forwarding config %v", config)
-		c.directory[config.GetTo()].ConfigIn <- config
+		c.directory[config.GetTo()].Inbox <- config
 	}
 }

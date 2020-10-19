@@ -4,7 +4,6 @@ import (
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 	"github.com/google/uuid"
 	"github.com/johnmillner/robo-macd/internal/alpaca_wrapper"
-	"github.com/johnmillner/robo-macd/internal/coordinator"
 	"github.com/johnmillner/robo-macd/internal/utils"
 	"log"
 	"sync"
@@ -12,7 +11,8 @@ import (
 )
 
 type Gatherer struct {
-	Configurator utils.Configurator
+	Messenger utils.Messenger
+	active    bool
 }
 
 type Equity struct {
@@ -27,9 +27,8 @@ type Equity struct {
 }
 
 type GathererConfig struct {
-	To     uuid.UUID
-	From   uuid.UUID
-	Active bool
+	To   uuid.UUID
+	From uuid.UUID
 
 	EquityData chan []Equity
 
@@ -40,26 +39,29 @@ type GathererConfig struct {
 	Alpaca alpaca_wrapper.AlpacaInterface
 }
 
-func InitGatherer(configurator utils.Configurator) Gatherer {
-	log.Printf("starting to gather with %v", configurator.Get())
-	g := Gatherer{
-		Configurator: configurator,
-	}
+func (g Gatherer) StartUp(messenger utils.Messenger) utils.Module {
+	log.Printf("starting gatherer %s", messenger.Me)
+	g.Messenger = messenger
+	g.active = true
 
 	go func() {
-		for config := g.Configurator.Get().(GathererConfig); config.Active; config = g.Configurator.Get().(GathererConfig) {
-			go g.gather(config)
-			time.Sleep(config.Period)
+		for g.active {
+			if config, ok := (messenger.Get()).(GathererConfig); ok {
+				go g.gather(config)
+				time.Sleep(config.Period)
+			} else {
+				log.Printf("config received by gatherer not understood %v", config)
+			}
 		}
-
-		log.Printf("shutting down gatherer %s", configurator.Me)
-		configurator.SendConfig(coordinator.Shutdown{
-			From:     configurator.Me,
-			Shutdown: true,
-		})
 	}()
 
 	return g
+}
+
+func (g Gatherer) ShutDown() {
+	g.active = false
+	close(g.GetMessenger().Get().(GathererConfig).EquityData)
+	log.Printf("shutting down gatherer %s", g.Messenger.Me)
 }
 
 func (g *Gatherer) gather(config GathererConfig) {
@@ -90,7 +92,7 @@ func gatherPage(symbols []string, config GathererConfig) [][]Equity {
 	}
 
 	// find when the market is open
-	marketTimes := NewMarketTimes(
+	marketTimes := newMarketTimes(
 		results[symbols[0]][0].GetTime(),
 		results[symbols[0]][len(results[symbols[0]])-1].GetTime(),
 		config.Alpaca)
@@ -129,7 +131,7 @@ func fillGaps(equities []Equity, marketTimes *MarketTimes, period time.Duration)
 		currentTime := equities[i].Time
 		expectedTime := currentTime.Add(period)
 		nextTime := equities[i+1].Time
-		if marketTimes.IsMarketOpen(expectedTime) && nextTime.After(expectedTime) {
+		if marketTimes.isMarketOpen(expectedTime) && nextTime.After(expectedTime) {
 			backFill := Equity{
 				Name:      equities[i].Name,
 				Time:      expectedTime,
@@ -151,7 +153,7 @@ func fillGaps(equities []Equity, marketTimes *MarketTimes, period time.Duration)
 func filterByMarketOpen(symbol string, bars []alpaca.Bar, marketTimes *MarketTimes) []Equity {
 	equities := make([]Equity, 0)
 	for _, bar := range bars {
-		if marketTimes.IsMarketOpen(bar.GetTime()) {
+		if marketTimes.isMarketOpen(bar.GetTime()) {
 			equities = append(equities, Equity{
 				Name:      symbol,
 				Time:      bar.GetTime(),
@@ -202,4 +204,8 @@ func (c GathererConfig) GetTo() uuid.UUID {
 
 func (c GathererConfig) GetFrom() uuid.UUID {
 	return c.From
+}
+
+func (g Gatherer) GetMessenger() utils.Messenger {
+	return g.Messenger
 }

@@ -11,29 +11,25 @@ import (
 
 func main() {
 	// setup coordinator and receive main's configurator
-	coordinator, mainConfigurator := coordinatorLib.InitCoordinator(make(chan utils.Config, 100))
+	coordinator, _ := coordinatorLib.InitCoordinator(make(chan utils.Message, 100))
 
 	//initialize the gatherer
-	gatherer := gatherers.InitGatherer(coordinator.NewConfigurator(gatherers.GathererConfig{
-		Active:     true,
+	gatherer := gatherers.Gatherer{}.StartUp(coordinator.NewMessenger(gatherers.GathererConfig{
 		EquityData: make(chan []gatherers.Equity, 100000),
 		Alpaca:     alpaca_wrapper.Alpaca{},
-		Period:     0,
-		Limit:      0,
+		Symbols:    []string{"TSLA"},
+		Period:     time.Minute,
+		Limit:      200,
 	}))
 
 	// sleep for just a moment to let the gatherer initialize before shutting it down next block
-	time.Sleep(time.Nanosecond)
+	time.Sleep(time.Second)
 
 	// tell the gatherer to stop as an example
-	mainConfigurator.SendConfig(gatherers.GathererConfig{
-		To:     gatherer.Configurator.Me,
-		From:   mainConfigurator.Me,
-		Active: false,
-	})
+	gatherer.ShutDown()
 
 	// read through the output of the gatherer as an example
-	for simpleData := range gatherer.Configurator.Get().(gatherers.GathererConfig).EquityData {
+	for simpleData := range gatherer.GetMessenger().Get().(gatherers.GathererConfig).EquityData {
 		for _, equity := range simpleData {
 			log.Printf("%v", equity)
 		}

@@ -1,10 +1,10 @@
 package gatherers
 
 import (
+	"errors"
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 	"github.com/google/uuid"
 	"github.com/johnmillner/robo-macd/internal/alpaca_wrapper"
-	"github.com/johnmillner/robo-macd/internal/coordinator"
 	"github.com/johnmillner/robo-macd/internal/utils"
 	"github.com/stretchr/testify/assert"
 	"log"
@@ -332,7 +332,7 @@ func TestGather_GatherPage_Success(t *testing.T) {
 		Period: time.Minute,
 		Alpaca: alpaca_wrapper.MockedAlpaca{
 			Bars:     alpaca_wrapper.MockGetBars,
-			Calendar: alpaca_wrapper.MockCalander,
+			Calendar: alpaca_wrapper.MockCalendar,
 		},
 	})
 
@@ -348,8 +348,10 @@ func TestGather_GatherPage_Failure(t *testing.T) {
 		gatherPage([]string{"TSLA"}, GathererConfig{
 			Period: time.Minute,
 			Alpaca: alpaca_wrapper.MockedAlpaca{
-				Bars:     alpaca_wrapper.MockGetBarsFail,
-				Calendar: alpaca_wrapper.MockCalander,
+				Bars: func(_ time.Duration, _ []string, _ int) (map[string][]alpaca.Bar, error) {
+					return nil, errors.New("test failure")
+				},
+				Calendar: alpaca_wrapper.MockCalendar,
 			},
 		})
 	})
@@ -365,7 +367,7 @@ func TestGather_Gather_OverLimit(t *testing.T) {
 		Limit:      2,
 		Alpaca: alpaca_wrapper.MockedAlpaca{
 			Bars:     alpaca_wrapper.MockGetBars,
-			Calendar: alpaca_wrapper.MockCalander,
+			Calendar: alpaca_wrapper.MockCalendar,
 		},
 	})
 
@@ -384,7 +386,7 @@ func TestGather_Gather_UnderLimit(t *testing.T) {
 		Limit:      100,
 		Alpaca: alpaca_wrapper.MockedAlpaca{
 			Bars:     alpaca_wrapper.MockGetBars,
-			Calendar: alpaca_wrapper.MockCalander,
+			Calendar: alpaca_wrapper.MockCalendar,
 		},
 	})
 
@@ -396,20 +398,18 @@ func TestGather_Gather_UnderLimit(t *testing.T) {
 func TestGather_InitGather_firstPage(t *testing.T) {
 	output := make(chan []Equity)
 
-	InitGatherer(utils.Configurator{
-		Me:        uuid.UUID{},
-		Module:    "gatherer",
-		ConfigIn:  make(chan utils.Config),
-		ConfigOut: nil,
-		Config: GathererConfig{
-			Active:     true,
+	Gatherer{}.StartUp(utils.Messenger{
+		Me:     uuid.UUID{},
+		Inbox:  make(chan utils.Message),
+		Outbox: nil,
+		Current: GathererConfig{
 			EquityData: output,
 			Symbols:    []string{"TSLA"},
 			Period:     time.Minute,
 			Limit:      100,
 			Alpaca: alpaca_wrapper.MockedAlpaca{
 				Bars:     alpaca_wrapper.MockGetBars,
-				Calendar: alpaca_wrapper.MockCalander,
+				Calendar: alpaca_wrapper.MockCalendar,
 			},
 		},
 	})
@@ -417,45 +417,25 @@ func TestGather_InitGather_firstPage(t *testing.T) {
 	equities := <-output
 
 	assert.Equal(t, 3, len(equities))
-}
-
-func TestGather_InitGather_Shutdown(t *testing.T) {
-	configIn := make(chan utils.Config)
-	configOut := make(chan utils.Config)
-
-	InitGatherer(utils.Configurator{
-		Me:        uuid.UUID{},
-		Module:    "gatherer",
-		ConfigIn:  configIn,
-		ConfigOut: configOut,
-		Config:    GathererConfig{},
-	})
-
-	messageOut := <-configOut
-	casted, ok := messageOut.(coordinator.Shutdown)
-	assert.True(t, ok)
-	assert.True(t, casted.Shutdown)
 }
 
 func TestGather_InitGather_firstPageThenShutdown(t *testing.T) {
 	output := make(chan []Equity)
-	configIn := make(chan utils.Config)
-	configOut := make(chan utils.Config)
+	configIn := make(chan utils.Message)
+	configOut := make(chan utils.Message)
 
-	InitGatherer(utils.Configurator{
-		Me:        uuid.UUID{},
-		Module:    "gatherer",
-		ConfigIn:  configIn,
-		ConfigOut: configOut,
-		Config: GathererConfig{
-			Active:     true,
+	g := Gatherer{}.StartUp(utils.Messenger{
+		Me:     uuid.UUID{},
+		Inbox:  configIn,
+		Outbox: configOut,
+		Current: GathererConfig{
 			EquityData: output,
 			Symbols:    []string{"TSLA"},
 			Period:     time.Minute,
 			Limit:      100,
 			Alpaca: alpaca_wrapper.MockedAlpaca{
 				Bars:     alpaca_wrapper.MockGetBars,
-				Calendar: alpaca_wrapper.MockCalander,
+				Calendar: alpaca_wrapper.MockCalendar,
 			},
 		},
 	})
@@ -464,12 +444,10 @@ func TestGather_InitGather_firstPageThenShutdown(t *testing.T) {
 
 	assert.Equal(t, 3, len(equities))
 
-	configIn <- GathererConfig{}
-
-	messageOut := <-configOut
-	casted, ok := messageOut.(coordinator.Shutdown)
-	assert.True(t, ok)
-	assert.True(t, casted.Shutdown)
+	g.ShutDown()
+	assert.Panics(t, func() {
+		g.GetMessenger().Get().(GathererConfig).EquityData <- []Equity{}
+	})
 }
 
 func TestGathererConfig_GetToFrom(t *testing.T) {
@@ -482,4 +460,30 @@ func TestGathererConfig_GetToFrom(t *testing.T) {
 
 	assert.Equal(t, to, gc.GetTo())
 	assert.Equal(t, from, gc.GetFrom())
+}
+
+func TestGatherer_InvalidMessage_Panics(t *testing.T) {
+	id := uuid.New()
+
+	assert.NotPanics(t, func() {
+		Gatherer{}.StartUp(utils.Messenger{
+			Me:      id,
+			Inbox:   make(chan utils.Message, 100),
+			Outbox:  nil,
+			Current: FakeMessage{id},
+		})
+		time.Sleep(time.Nanosecond)
+	})
+}
+
+type FakeMessage struct {
+	to uuid.UUID
+}
+
+func (f FakeMessage) GetTo() uuid.UUID {
+	return f.to
+}
+
+func (f FakeMessage) GetFrom() uuid.UUID {
+	return uuid.New()
 }

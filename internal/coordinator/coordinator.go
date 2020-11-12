@@ -58,7 +58,7 @@ func InitCoordinator(coordinatorOutput chan utils.Message) (Coordinator, utils.M
 
 func (c *Coordinator) configForwarder() {
 	for config := range c.messenger.Inbox {
-		log.Printf("forwarding config %v", config)
+		log.Printf("forwarding message %v", config)
 		c.directory[config.GetTo()].Inbox <- config
 	}
 }

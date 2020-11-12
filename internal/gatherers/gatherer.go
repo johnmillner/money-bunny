@@ -115,7 +115,6 @@ func gatherPage(symbols []string, config GathererConfig) [][]Equity {
 		waitGroup.Add(1)
 		go func(i int, equityList []Equity) {
 			defer waitGroup.Done()
-
 			equities[i] = fillGaps(equityList, marketTimes, config.Period)
 		}(i, equityList)
 	}

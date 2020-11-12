@@ -25,30 +25,30 @@ type Module interface {
 
 func (m Messenger) Get() Message {
 	select {
-	case config := <-m.Inbox:
-		if config.GetTo() != m.Me {
-			log.Printf("received configuration not meant for me: I am %s - configuration is %v", m.Me, config)
+	case message := <-m.Inbox:
+		if message.GetTo() != m.Me {
+			log.Printf("received message not meant for me: I am %s - message is %v", m.Me, message)
 			break
 		}
 
-		m.Current = config
+		m.Current = message
 	default:
-		// return prior config if nothing waiting in the channel to be picked up
+		// return prior message if nothing waiting in the channel to be picked up
 	}
 
 	return m.Current
 }
 
 func (m Messenger) GetAndBlock() Message {
-	config := <-m.Inbox
+	message := <-m.Inbox
 
-	if config.GetTo() != m.Me {
-		log.Printf("received configuration not meant for me: I am %s - configuration is %v", m.Me, config)
+	if message.GetTo() != m.Me {
+		log.Printf("received message not meant for me: I am %s - message is %v", m.Me, message)
 		return m.GetAndBlock()
 	}
 
 	log.Printf("got message!")
-	m.Current = config
+	m.Current = message
 
 	return m.Current
 }

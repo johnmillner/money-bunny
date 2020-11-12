@@ -1,48 +1,39 @@
 package main
 
 import (
-	"github.com/google/uuid"
+	"github.com/johnmillner/robo-macd/internal/alpaca_wrapper"
+	coordinatorLib "github.com/johnmillner/robo-macd/internal/coordinator"
 	"github.com/johnmillner/robo-macd/internal/gatherers"
-	"github.com/johnmillner/robo-macd/internal/transformers"
 	"github.com/johnmillner/robo-macd/internal/utils"
 	"log"
-	"os"
 	"time"
-
-	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
-	"github.com/alpacahq/alpaca-trade-api-go/common"
 )
 
-func init() {
-	// todo
-	_ = os.Setenv(common.EnvApiKeyID, "")
-	_ = os.Setenv(common.EnvApiSecretKey, "")
-	alpaca.SetBaseUrl("https://paper-api.alpaca.markets")
-}
-
 func main() {
-	alpacaClient := alpaca.NewClient(common.Credentials())
+	// setup coordinator and receive main's configurator
+	coordinator, _ := coordinatorLib.InitCoordinator(make(chan utils.Message, 100))
 
-	fetcherId, _ := uuid.NewRandom()
+	//initialize the gatherer
+	gatherer := gatherers.Gatherer{}.StartUp(coordinator.NewMessenger(gatherers.GathererConfig{
+		EquityData: make(chan []gatherers.Equity, 100000),
+		Alpaca:     alpaca_wrapper.Alpaca{},
+		Symbols:    []string{"TSLA"},
+		Period:     time.Minute,
+		Limit:      200,
+	}))
 
-	dataOut := make(chan transformers.SimpleData, 100000)
-	configManager := utils.ConfigManager{
-		Me:        fetcherId,
-		ConfigIn:  make(chan utils.ConfigMessage, 100000),
-		ConfigOut: make(chan utils.ConfigMessage, 100000),
-		Config: gatherers.FetcherConfig{
-			To:         fetcherId,
-			Active:     true,
-			SimpleData: dataOut,
-			Client:     *alpacaClient,
-			Symbols:    []string{"TSLA", "AAPL"},
-			Period:     time.Minute,
-		},
+	// sleep for just a moment to let the gatherer initialize before shutting it down next block
+	time.Sleep(time.Second)
+
+	// tell the gatherer to stop as an example
+	gatherer.ShutDown()
+
+	// read through the output of the gatherer as an example
+	for simpleData := range gatherer.GetMessenger().Get().(gatherers.GathererConfig).EquityData {
+		for _, equity := range simpleData {
+			log.Printf("%v", equity)
+		}
+		log.Printf("%d", len(simpleData))
 	}
 
-	go gatherers.StartFetching(configManager)
-
-	for simpleData := range dataOut {
-		log.Printf("%v", simpleData)
-	}
 }

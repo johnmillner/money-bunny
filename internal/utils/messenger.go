@@ -53,6 +53,6 @@ func (m Messenger) GetAndBlock() Message {
 	return m.Current
 }
 
-func (m *Messenger) Send(config Message) {
-	m.Outbox <- config
+func (m *Messenger) Send(message Message) {
+	m.Outbox <- message
 }

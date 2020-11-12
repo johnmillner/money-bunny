@@ -52,12 +52,12 @@ func InitCoordinator(coordinatorOutput chan utils.Message) (Coordinator, utils.M
 	// add the coordinators coordinatorConfigurator to the directory
 	coordinator.directory[coordinator.messenger.Me] = coordinator.messenger
 
-	go coordinator.configForwarder(coordinator.messenger)
+	go coordinator.configForwarder()
 	return coordinator, coordinator.GetMessenger(mainId)
 }
 
-func (c *Coordinator) configForwarder(configurator utils.Messenger) {
-	for config := range configurator.Inbox {
+func (c *Coordinator) configForwarder() {
+	for config := range c.messenger.Inbox {
 		log.Printf("forwarding config %v", config)
 		c.directory[config.GetTo()].Inbox <- config
 	}

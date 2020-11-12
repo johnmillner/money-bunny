@@ -36,6 +36,6 @@ func MockCalendar(_, _ string) ([]alpaca.CalendarDay, error) {
 	return []alpaca.CalendarDay{{
 		Date:  time.Now().Format("2006-01-02"),
 		Open:  time.Now().Add(-5 * time.Minute).Format("15:04"),
-		Close: time.Now().Format("15:04"),
+		Close: time.Now().Add(time.Minute).Format("15:04"),
 	}}, nil
 }

@@ -16,14 +16,11 @@ type Gatherer struct {
 }
 
 type Equity struct {
-	Name      string
-	Time      time.Time
-	Open      float32
-	Close     float32
-	Low       float32
-	High      float32
-	Volume    int32
-	generated bool
+	Name                   string
+	Time                   time.Time
+	Open, Close, Low, High float64
+	Volume                 int32
+	generated              bool
 }
 
 type GathererConfig struct {
@@ -156,10 +153,10 @@ func filterByMarketOpen(symbol string, bars []alpaca.Bar, marketTimes *MarketTim
 			equities = append(equities, Equity{
 				Name:      symbol,
 				Time:      bar.GetTime(),
-				Open:      bar.Open,
-				Close:     bar.Close,
-				Low:       bar.Low,
-				High:      bar.High,
+				Open:      float64(bar.Open),
+				Close:     float64(bar.Close),
+				Low:       float64(bar.Low),
+				High:      float64(bar.High),
 				Volume:    bar.Volume,
 				generated: false,
 			})

@@ -15,7 +15,7 @@ func main() {
 	coordinator, _ := coordinatorLib.InitCoordinator(make(chan utils.Message, 100))
 
 	equityData := make(chan []gatherers.Equity, 100000)
-	macdData := make(chan []transformers.Macd, 100000)
+	macdData := make(chan []transformers.TransformedData, 100000)
 	//initialize the gatherer
 	_ = gatherers.Gatherer{}.StartUp(coordinator.NewMessenger(gatherers.GathererConfig{
 		EquityData: equityData,
@@ -25,18 +25,19 @@ func main() {
 		Limit:      200,
 	}))
 
-	_ = transformers.MacdTransformer{}.StartUp(coordinator.NewMessenger(transformers.MacdConfig{
-		EquityData: equityData,
-		MacdData:   macdData,
-		Twelve:     12,
-		TwentySix:  26,
-		Nine:       9,
+	_ = transformers.Transformer{}.StartUp(coordinator.NewMessenger(transformers.Config{
+		EquityData:      equityData,
+		TransformedData: macdData,
+		Fast:            12,
+		Slow:            26,
+		Signal:          9,
+		InTime:          14,
 	}))
 
 	// read through the output of the gatherer as an example
 	for simpleData := range macdData {
 		for _, equity := range simpleData {
-			log.Printf("%v", equity)
+			log.Printf("%+v", equity)
 		}
 		log.Printf("%d", len(simpleData))
 	}

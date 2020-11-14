@@ -22,7 +22,7 @@ func main() {
 		Alpaca:     alpaca_wrapper.Alpaca{},
 		Symbols:    []string{"TSLA"},
 		Period:     time.Minute,
-		Limit:      200,
+		Limit:      200 + 14 + 1 + 5,
 	}))
 
 	_ = transformers.Transformer{}.StartUp(coordinator.NewMessenger(transformers.Config{
@@ -31,6 +31,8 @@ func main() {
 		Fast:            12,
 		Slow:            26,
 		Signal:          9,
+		Trend:           200,
+		Smooth:          14,
 		InTime:          14,
 	}))
 

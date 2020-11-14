@@ -17,28 +17,23 @@ Multiple time scans can be run in parallel such that there are essentially conve
 There could be a conveyor belt fo 1hr period, 4hr period, 1 day, etc periods all running in parallel playing short 
 term swing trades as well as longer term plays - with different stocks bought (entering the conveyor belt) and sold (exiting the conveyor belt) asynchronously
 
-# manager strategy 
-use rsi to confirm overbought or oversold momentum
- - will block buys when rsi>70%
- - will block sells when rsi<30%
-use aroon indicator as a trend indicator 
- - will block buys when on a down trend
- - will block sells when on an up trend
-use macd to determine trend entry and exit signals
- - only buy when positive crossover with histo<0
- - only sell when negative crossover with histo>0 
-
-## executor strategy - buy
+# manager strategy - buying
+use 200 ema as longer term true value 
+ - will block buys when price is above ema
+use acceleration and velocity of 200 ema as trend directional indicator
+ - will block buys when acceleration or velocity of ema is <0
+use macd to determine trend entry signal
+ - only buy when positive crossover with histo<0 (delta(histo=0))
+use 2*ATR to determine stop-loss
+use 2&ATR*1.5 to determine take-profit
+ 
+## executor strategy 
 * an opportunity is noticed for a particular stock as communicated by the manager
 * the configures max trade value is received
 * confirmation is made with the portfolio that there is capital available to make the trade
-* the configured wanted risk is calculated adding atr to determine the stop loss (actually risk will be greater depending on volatility)
+* the stop loss is generated from the price-2*atr value
+* the take profit is calculated by 
 * the configured risk/reward is calculated to determine take-profit
-
-## executor strategy - sell
-* manager notices a sell potential for a particular stock 
-* this stock is checked against the portfolio to confirm if owned
-* if so, close the position before the take profit/stop-loss
 
 ## notes
 this algo does not take into account supports and resistances when calculating stop-losses and take-profits

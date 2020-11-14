@@ -21,17 +21,16 @@ type Config struct {
 	EquityData      chan []gatherers.Equity
 	TransformedData chan []TransformedData
 
-	Fast, Slow, Signal, InTime int
+	Fast, Slow, Signal, Trend, Smooth, InTime int
 }
 
 type TransformedData struct {
-	Time                                                         time.Time
-	Price, macd, signal, histogram, rsi, aroonUp, aroonDown, atr float64
-	volume                                                       int32
+	Time                                                           time.Time
+	Price, Macd, Signal, Delta, Trend, Velocity, Acceleration, Atr float64
 }
 
 func (m Transformer) StartUp(messenger utils.Messenger) utils.Module {
-	log.Printf("starting macd transformer %s", messenger.Me)
+	log.Printf("starting Macd transformer %s", messenger.Me)
 	m.Messenger = messenger
 	m.active = true
 
@@ -56,22 +55,45 @@ func (m Transformer) transform(equities []gatherers.Equity, config Config) {
 		config.Fast,
 		config.Slow,
 		config.Signal,
+		config.Trend,
+		config.Smooth,
 		config.InTime)
 }
 
-func transformMacd(equities []gatherers.Equity, fast, slow, signal, inTime int) []TransformedData {
+func transformMacd(equities []gatherers.Equity, fast, slow, signal, trend, smooth, inTime int) []TransformedData {
 	closePrices := make([]float64, len(equities))
 	LowPrices := make([]float64, len(equities))
 	HighPrices := make([]float64, len(equities))
 	for i := range equities {
-		closePrices[i] = float64(equities[i].Close)
-		LowPrices[i] = float64(equities[i].Low)
-		HighPrices[i] = float64(equities[i].High)
+		closePrices[i] = equities[i].Close
+		LowPrices[i] = equities[i].Low
+		HighPrices[i] = equities[i].High
 	}
 
 	macdLine, signalLine, histogram := talib.Macd(closePrices, fast, slow, signal)
-	rsi := talib.Rsi(closePrices, inTime)
-	aroonUp, aroonDown := talib.Aroon(HighPrices, LowPrices, inTime)
+	trendLine := talib.Ema(closePrices, trend)[trend:]
+
+	trendVelocity := make([]float64, len(trendLine))
+	for i := range trendLine {
+		if i == 0 || trendLine[i-1] == 0 {
+			continue
+		}
+		trendVelocity[i] = trendLine[i] - trendLine[i-1]
+	}
+	trendVelocity = trendVelocity[1:]
+
+	trendAcceleration := make([]float64, len(trendVelocity))
+	for i := range trendVelocity {
+		if i == 0 || trendVelocity[i-1] == 0 {
+			continue
+		}
+		trendAcceleration[i] = trendVelocity[i] - trendVelocity[i-1]
+	}
+	trendAcceleration = trendAcceleration[1:]
+
+	trendVelocity = talib.Ema(trendVelocity, smooth)
+	trendAcceleration = talib.Ema(trendAcceleration, smooth)
+
 	atr := talib.Atr(HighPrices, LowPrices, closePrices, inTime)
 
 	macd := make([]TransformedData, len(signalLine))
@@ -79,22 +101,28 @@ func transformMacd(equities []gatherers.Equity, fast, slow, signal, inTime int) 
 
 		macd[i].Time = equities[i].Time
 		macd[i].Price = equities[i].Close
-		macd[i].volume = equities[i].Volume
-		macd[i].macd = macdLine[i]
-		macd[i].signal = signalLine[i]
-		macd[i].histogram = histogram[i]
-		macd[i].rsi = rsi[i]
-		macd[i].aroonUp = aroonUp[i]
-		macd[i].aroonDown = aroonDown[i]
-		macd[i].atr = atr[i]
+		macd[i].Macd = macdLine[i]
+		macd[i].Signal = signalLine[i]
+		macd[i].Delta = histogram[i]
+		macd[i].Atr = atr[i]
+
+		if i >= trend {
+			macd[i].Trend = trendLine[i-trend]
+		}
+		if i >= trend+1 {
+			macd[i].Velocity = trendVelocity[i-trend-1]
+		}
+		if i >= trend+2 {
+			macd[i].Acceleration = trendAcceleration[i-trend-2]
+		}
 	}
 
-	return macd[slow+signal:]
+	return macd[trend+smooth+1:]
 }
 
 func (m Transformer) ShutDown() {
 	m.active = false
-	log.Printf("shutting down macd transformer %s", m.Messenger.Me)
+	log.Printf("shutting down Macd transformer %s", m.Messenger.Me)
 }
 
 func (c Config) GetTo() uuid.UUID {

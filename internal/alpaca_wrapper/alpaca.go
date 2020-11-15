@@ -3,6 +3,7 @@ package alpaca_wrapper
 import (
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 	"github.com/alpacahq/alpaca-trade-api-go/common"
+	"github.com/shopspring/decimal"
 	"log"
 	"time"
 )
@@ -10,6 +11,9 @@ import (
 type AlpacaInterface interface {
 	GetBars(period time.Duration, symbols []string, limit int) (map[string][]alpaca.Bar, error)
 	GetCalendar(start, end string) ([]alpaca.CalendarDay, error)
+	BuyBracket(symbol string, qty int, takeProfit, stopLoss, stopLimit float64) (*alpaca.Order, error)
+	GetAccount() (*alpaca.Account, error)
+	ListAsserts() ([]alpaca.Asset, error)
 }
 
 type Alpaca struct {
@@ -32,6 +36,37 @@ func (a Alpaca) GetBars(period time.Duration, symbols []string, limit int) (map[
 
 func (a Alpaca) GetCalendar(start, end string) ([]alpaca.CalendarDay, error) {
 	return alpaca.GetCalendar(&start, &end)
+}
+
+func (a Alpaca) BuyBracket(symbol string, qty int, takeProfit, stopLoss, stopLimit float64) (*alpaca.Order, error) {
+	profit := decimal.NewFromFloat(takeProfit)
+	loss := decimal.NewFromFloat(stopLoss)
+	limit := decimal.NewFromFloat(stopLimit)
+
+	return alpaca.PlaceOrder(alpaca.PlaceOrderRequest{
+		AssetKey:    &symbol,
+		Qty:         decimal.New(int64(qty), 1),
+		Side:        "buy",
+		Type:        "market",
+		TimeInForce: "day",
+		OrderClass:  "bracket",
+		TakeProfit: &alpaca.TakeProfit{
+			LimitPrice: &profit,
+		},
+		StopLoss: &alpaca.StopLoss{
+			LimitPrice: &limit,
+			StopPrice:  &loss,
+		},
+	})
+}
+
+func (a Alpaca) GetAccount() (*alpaca.Account, error) {
+	return alpaca.GetAccount()
+}
+
+func (a Alpaca) ListAsserts() ([]alpaca.Asset, error) {
+	status := "active"
+	return alpaca.ListAssets(&status)
 }
 
 func durationToTimeframe(dur time.Duration) string {

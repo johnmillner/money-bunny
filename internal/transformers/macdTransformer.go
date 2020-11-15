@@ -25,6 +25,7 @@ type Config struct {
 }
 
 type TransformedData struct {
+	Name                                                           string
 	Time                                                           time.Time
 	Price, Macd, Signal, Delta, Trend, Velocity, Acceleration, Atr float64
 }
@@ -50,6 +51,10 @@ func (m Transformer) StartUp(messenger utils.Messenger) utils.Module {
 }
 
 func (m Transformer) transform(equities []gatherers.Equity, config Config) {
+	if equities == nil || len(equities) <= config.Trend+config.Smooth-2 {
+		return
+	}
+
 	config.TransformedData <- transformMacd(
 		equities,
 		config.Fast,
@@ -98,7 +103,7 @@ func transformMacd(equities []gatherers.Equity, fast, slow, signal, trend, smoot
 
 	macd := make([]TransformedData, len(signalLine))
 	for i := range signalLine {
-
+		macd[i].Name = equities[i].Name
 		macd[i].Time = equities[i].Time
 		macd[i].Price = equities[i].Close
 		macd[i].Macd = macdLine[i]

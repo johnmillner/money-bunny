@@ -56,6 +56,8 @@ func (m Executor) buy(data transformers.TransformedData, config Config) {
 	stopLoss := data.Price - 2*data.Atr
 	stopLimit := data.Price - 2.5*data.Atr
 
+	log.Printf("%f %v %f %f %f", data.Price, data.Time, takeProfit, stopLoss, stopLimit)
+
 	qty := int(math.Round(portfolio * risk / data.Price))
 
 	order, err := config.Alpaca.BuyBracket(data.Name, qty, takeProfit, stopLoss, stopLimit)
@@ -63,7 +65,7 @@ func (m Executor) buy(data transformers.TransformedData, config Config) {
 		log.Printf("could not complete order for %s from alpaca_wrapper due to %s", data.Name, err)
 	}
 
-	log.Printf("ordered %+v", order)
+	log.Printf("ordered %s %+v", data.Name, order)
 }
 
 func (m Executor) ShutDown() {

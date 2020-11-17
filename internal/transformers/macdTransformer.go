@@ -51,9 +51,6 @@ func (m Transformer) StartUp(messenger utils.Messenger) utils.Module {
 }
 
 func (m Transformer) transform(equities []gatherers.Equity, config Config) {
-	if equities == nil || len(equities) <= config.Trend+config.Smooth-2 {
-		return
-	}
 
 	config.TransformedData <- transformMacd(
 		equities,
@@ -69,10 +66,12 @@ func transformMacd(equities []gatherers.Equity, fast, slow, signal, trend, smoot
 	closePrices := make([]float64, len(equities))
 	LowPrices := make([]float64, len(equities))
 	HighPrices := make([]float64, len(equities))
+	times := make([]time.Time, len(equities))
 	for i := range equities {
 		closePrices[i] = equities[i].Close
 		LowPrices[i] = equities[i].Low
 		HighPrices[i] = equities[i].High
+		times[i] = equities[i].Time
 	}
 
 	macdLine, signalLine, histogram := talib.Macd(closePrices, fast, slow, signal)

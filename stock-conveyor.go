@@ -12,7 +12,8 @@ import (
 	"time"
 )
 
-func main() {
+func asdf() {
+
 	// setup coordinator and receive main's configurator
 	coordinator, _ := coordinatorLib.InitCoordinator(make(chan utils.Message, 100))
 
@@ -21,6 +22,7 @@ func main() {
 	macdData := make(chan []transformers.TransformedData, 1000)
 	managerData := make(chan transformers.TransformedData, 1000)
 
+	//time.Sleep(time.Now().Round(time.Minute).Add(time.Minute+time.Second).Sub(time.Now()))
 	//initialize the gatherer
 	_ = gatherers.Gatherer{}.StartUp(coordinator.NewMessenger(gatherers.GathererConfig{
 		EquityData: equityData,

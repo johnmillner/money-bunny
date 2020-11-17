@@ -5,6 +5,7 @@ import (
 	"github.com/johnmillner/robo-macd/internal/transformers"
 	"github.com/johnmillner/robo-macd/internal/utils"
 	"log"
+	"time"
 )
 
 type Manager struct {
@@ -42,7 +43,8 @@ func (m Manager) StartUp(messenger utils.Messenger) utils.Module {
 
 func (m Manager) manage(transformedData []transformers.TransformedData, config Config) {
 
-	buy := isBelowTrend(transformedData) &&
+	buy := transformedData[len(transformedData)-1].Time.After(time.Now().Add(-3*time.Minute)) &&
+		isBelowTrend(transformedData) &&
 		isUpTrend(transformedData) &&
 		isPositiveMacdCrossOver(transformedData)
 
@@ -50,6 +52,7 @@ func (m Manager) manage(transformedData []transformers.TransformedData, config C
 		return
 	}
 
+	log.Printf("start %v, end%v", transformedData[0].Time, transformedData[len(transformedData)-1].Time)
 	config.ManagerData <- transformedData[len(transformedData)-1]
 }
 

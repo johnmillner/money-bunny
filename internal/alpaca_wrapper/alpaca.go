@@ -14,6 +14,7 @@ type AlpacaInterface interface {
 	BuyBracket(symbol string, qty int, takeProfit, stopLoss, stopLimit float64) (*alpaca.Order, error)
 	GetAccount() (*alpaca.Account, error)
 	ListAsserts() ([]alpaca.Asset, error)
+	GetQuote(symbol string) (*alpaca.LastQuoteResponse, error)
 }
 
 type Alpaca struct {
@@ -24,6 +25,7 @@ func (a Alpaca) getClient() *alpaca.Client {
 	if a.client == nil {
 		a.client = alpaca.NewClient(common.Credentials())
 	}
+
 	return a.client
 }
 
@@ -67,6 +69,10 @@ func (a Alpaca) GetAccount() (*alpaca.Account, error) {
 func (a Alpaca) ListAsserts() ([]alpaca.Asset, error) {
 	status := "active"
 	return alpaca.ListAssets(&status)
+}
+
+func (a Alpaca) GetQuote(symbol string) (*alpaca.LastQuoteResponse, error) {
+	return alpaca.GetLastQuote(symbol)
 }
 
 func durationToTimeframe(dur time.Duration) string {

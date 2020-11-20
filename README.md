@@ -67,3 +67,5 @@ Provides ways to view the account, gains, trades, win/loss rate, and allows for 
  * specific configurations for the transformer(s)
  * specific configurations for the managers(s)
  * specific configurations for the executor
+ 
+ 

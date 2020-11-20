@@ -105,21 +105,19 @@ func (a Alpaca) GetPortfolioValue() float64 {
 }
 
 func (a Alpaca) LiquidateOldPositions() {
-	func() {
-		orders := a.ListOpenOrders()
-		for _, order := range orders {
-			if order.SubmittedAt.Add(30 * time.Minute).After(time.Now()) {
-				err := a.Client.ClosePosition(order.Symbol)
+	orders := a.ListOpenOrders()
+	for _, order := range orders {
+		if order.SubmittedAt.Add(30 * time.Minute).Before(time.Now()) {
+			err := a.Client.ClosePosition(order.Symbol)
 
-				if err != nil {
-					log.Printf("could not liqudate old position for %s due to %s", order.Symbol, err)
-					continue
-				}
-
-				log.Printf("liqudated %s since it was too old", order.Symbol)
+			if err != nil {
+				log.Printf("could not liqudate old position for %s due to %s", order.Symbol, err)
+				continue
 			}
-		}
 
-		time.Sleep(time.Minute)
-	}()
+			log.Printf("liqudated %s since it was too old", order.Symbol)
+		}
+	}
+
+	time.Sleep(time.Minute)
 }

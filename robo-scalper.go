@@ -16,12 +16,12 @@ func main() {
 	// read in configs
 	config.Config()
 
-	Symbols := viper.GetStringSlice("stocks")
+	symbols := viper.GetStringSlice("stocks")
 
 	updates := make(chan stock.Stock, 10000)
 
 	a := io.NewAlpaca()
-	stocks := a.GetHistoricalStocks(Symbols, updates)
+	stocks := a.GetHistoricalStocks(symbols, updates)
 	io.LiveUpdates(stocks)
 
 	go a.LiquidateOldPositions()

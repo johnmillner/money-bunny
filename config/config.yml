@@ -1,0 +1,53 @@
+risk: 0.01
+riskReward: 1.5
+stopLossMax: 0.25
+
+macd:
+  fast: 12
+  slow: 26
+  signal: 9
+trend: 200
+atr: 14
+
+alpaca:
+  key: ""
+  secret: ""
+polygon:
+  key: ""
+
+stocks:
+  - "ZM"
+  - "UBER"
+  - "TSLA"
+  - "SNAP"
+  - "RKT"
+  - "PTON"
+  - "PLUG"
+  - "PLTR"
+  - "NKLA"
+  - "FSLY"
+  - "EBAY"
+  - "DIS"
+  - "AMD"
+  - "NVDA"
+  - "AAPL"
+  - "FUV"
+  - "FCEL"
+  - "NIO"
+  - "AMC"
+  - "LUV"
+  - "SPCE"
+  - "ALGM"
+  - "TRIP"
+  - "APPN"
+  - "SQ"
+  - "PYPL"
+  - "SBUX"
+  - "MSFT"
+  - "AMZN"
+  - "GOOG"
+  - "NFLX"
+  - "TDY"
+  - "SHOP"
+  - "MMM"
+  - "TSM"

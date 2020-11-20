@@ -1,14 +1,10 @@
-package main
+package stock
 
 // Ouroboros contains a ring buffer style stack that can have a Rasterized array of the current state printed out
 type Ouroboros struct {
 	Capacity  int
 	beginning int
 	stack     []float64
-}
-
-func (o Ouroboros) IsFull() bool {
-	return len(o.stack) >= o.Capacity
 }
 
 func (o Ouroboros) Push(ticker float64) Ouroboros {

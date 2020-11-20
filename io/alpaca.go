@@ -75,7 +75,7 @@ func (a Alpaca) CountTradesAndOrders() int {
 
 func (a Alpaca) ListOpenOrders() []alpaca.Order {
 	open := "open"
-	roll := true
+	roll := false
 	orders, err := a.Client.ListOrders(&open, nil, nil, &roll)
 	if err != nil {
 		log.Panicf("could not list open orders in account from io")
@@ -105,19 +105,30 @@ func (a Alpaca) GetPortfolioValue() float64 {
 }
 
 func (a Alpaca) LiquidateOldPositions() {
-	orders := a.ListOpenOrders()
-	for _, order := range orders {
-		if order.SubmittedAt.Add(30 * time.Minute).Before(time.Now()) {
-			err := a.Client.ClosePosition(order.Symbol)
+	for {
+		orders := a.ListOpenOrders()
 
-			if err != nil {
-				log.Printf("could not liqudate old position for %s due to %s", order.Symbol, err)
-				continue
+		for _, order := range orders {
+			if order.SubmittedAt.Add(30 * time.Minute).Before(time.Now()) {
+				err := a.Client.CancelOrder(order.ID)
+
+				if err != nil {
+					log.Printf("could not cancel old order for %s due to %s", order.Symbol, err)
+					continue
+				}
+
+				err = a.Client.ClosePosition(order.Symbol)
+
+				if err != nil {
+					log.Printf("could not liqudate old position for %s due to %s", order.Symbol, err)
+					continue
+				}
+
+				log.Printf("liqudated %s since it was too old", order.Symbol)
 			}
-
-			log.Printf("liqudated %s since it was too old", order.Symbol)
 		}
+
+		time.Sleep(time.Minute)
 	}
 
-	time.Sleep(time.Minute)
 }

@@ -1,6 +1,6 @@
 risk: 0.01
 riskReward: 1.5
-stopLossMax: 0.25
+stopLossMax: 0.5
 
 macd:
   fast: 12
@@ -44,7 +44,6 @@ stocks:
   - "AMZN"
   - "GOOG"
   - "NFLX"
-  - "TDY"
   - "SHOP"
   - "MMM"
   - "TSM"

@@ -32,10 +32,10 @@ func main() {
 			s.IsUpwardsTrend() &&
 			s.IsPositiveMacdCrossOver() {
 
-			qty, takeProfit, stopLoss, stopLimit := getOrderParameters(s, a)
+			price, qty, takeProfit, stopLoss, stopLimit := getOrderParameters(s, a)
 			a.OrderBracket(s.Symbol, qty, takeProfit, stopLoss, stopLimit)
 
-			logSnapshot(s)
+			logSnapshot(s, price, qty, takeProfit, stopLoss)
 
 			// time out to prevent double trading
 			time.Sleep(30 * time.Second)
@@ -43,14 +43,32 @@ func main() {
 	}
 }
 
-func logSnapshot(s stock.Stock) {
+func logSnapshot(s stock.Stock, price, qty, takeProfit, stopLoss float64) {
 	p, m, i, t, v, a, r := s.Snapshot()
-	log.Printf("snap shot: %s, price, macd, signal, trend, vel, acc, atr "+
-		"\n\t%v\n\t%v\n\t%v\n\t%v\n\t%v\n\t%v\n\t%v",
-		s.Symbol, p, m, i, t, v, a, r)
+	log.Printf("ordered %s:\n\t"+
+		"price %v\n\t"+
+		"macd %v\n\t"+
+		"signal %v\n\t"+
+		"trend %v\n\t"+
+		"vel %v\n\t"+
+		"acc %v\n\t"+
+		"atr %v\n\t"+
+		"maxProfit: %v\n\t"+
+		"maxLoss: %v\n\t"+
+		"price: %f\n\t"+
+		"takeProfit: %f\n\t"+
+		"stopLoss: %f\n\t"+
+		"qty: %f",
+		s.Symbol, p, m, i, t, v, a, r,
+		(takeProfit-price)*qty,
+		(price-stopLoss)*qty,
+		price,
+		takeProfit,
+		stopLoss,
+		qty)
 }
 
-func getOrderParameters(s stock.Stock, a io.Alpaca) (float64, float64, float64, float64) {
+func getOrderParameters(s stock.Stock, a io.Alpaca) (float64, float64, float64, float64, float64) {
 	quote := io.GetQuote(s.Symbol)
 	portfolio := a.GetPortfolioValue()
 	portfolioRisk := viper.GetFloat64("risk")
@@ -74,14 +92,5 @@ func getOrderParameters(s stock.Stock, a io.Alpaca) (float64, float64, float64, 
 		qty = qty - 1
 	}
 
-	log.Printf("ordering: %s, maxProfit: %v, maxLoss: %v, price: %f, takeProfit: %f, stopLoss: %f, qty: %f",
-		s.Symbol,
-		(takeProfit-price)*qty,
-		(price-stopLoss)*qty,
-		price,
-		takeProfit,
-		stopLoss,
-		qty)
-
-	return qty, takeProfit, stopLoss, stopLimit
+	return price, qty, takeProfit, stopLoss, stopLimit
 }

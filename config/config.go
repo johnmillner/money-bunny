@@ -10,7 +10,7 @@ func Config() {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath("config")
-	viper.EnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.EnvKeyReplacer(strings.NewReplacer("_", "."))
 	viper.SetEnvPrefix("RS")
 	viper.AutomaticEnv()
 	viper.WatchConfig()
@@ -18,6 +18,6 @@ func Config() {
 	err := viper.ReadInConfig()
 
 	if err != nil {
-		log.Panicf("Fatal error config file: %s \n", err)
+		log.Panicf("Fatal error config file: %s", err)
 	}
 }

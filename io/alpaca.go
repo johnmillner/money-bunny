@@ -7,7 +7,6 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/spf13/viper"
 	"log"
-	"time"
 )
 
 type Alpaca struct {
@@ -25,7 +24,7 @@ func NewAlpaca() Alpaca {
 func (a Alpaca) GetHistoricalStocks(symbols []string, updates chan stock.Stock) map[string]*stock.Stock {
 	stocks := make(map[string]*stock.Stock)
 
-	limit := viper.GetInt("trend") + 2
+	limit := viper.GetInt("trend") + viper.GetInt("snapshot-lookback-min") + 2
 	bars, err := a.Client.ListBars(symbols, alpaca.ListBarParams{
 		Timeframe: "1Min",
 		Limit:     &limit,
@@ -78,16 +77,28 @@ func (a Alpaca) ListOpenOrders() []alpaca.Order {
 	roll := false
 	orders, err := a.Client.ListOrders(&open, nil, nil, &roll)
 	if err != nil {
-		log.Panicf("could not list open orders in account from io")
+		log.Panicf("could not list open orders in account due to %s", err)
+		// todo recover
 	}
 
 	return orders
 }
 
+func (a Alpaca) GetPosition(symbol string) *alpaca.Position {
+	position, err := a.Client.GetPosition(symbol)
+	if err != nil {
+		log.Panicf("could not list positions in account due to %s", err)
+		// todo recover
+	}
+
+	return position
+}
+
 func (a Alpaca) ListPositions() []alpaca.Position {
 	positions, err := a.Client.ListPositions()
 	if err != nil {
-		log.Panicf("could not list positions in account from io")
+		log.Panicf("could not list positions in account due to %s", err)
+		// todo recover
 	}
 
 	return positions
@@ -104,31 +115,18 @@ func (a Alpaca) GetPortfolioValue() float64 {
 	return portfolio
 }
 
-func (a Alpaca) LiquidateOldPositions() {
-	for {
-		orders := a.ListOpenOrders()
+func (a Alpaca) LiquidatePosition(order alpaca.Order) {
+	err := a.Client.CancelOrder(order.ID)
 
-		for _, order := range orders {
-			if order.SubmittedAt.Add(30 * time.Minute).Before(time.Now()) {
-				err := a.Client.CancelOrder(order.ID)
-
-				if err != nil {
-					log.Printf("could not cancel old order for %s due to %s", order.Symbol, err)
-					continue
-				}
-
-				err = a.Client.ClosePosition(order.Symbol)
-
-				if err != nil {
-					log.Printf("could not liqudate old position for %s due to %s", order.Symbol, err)
-					continue
-				}
-
-				log.Printf("liqudated %s since it was too old", order.Symbol)
-			}
-		}
-
-		time.Sleep(time.Minute)
+	if err != nil {
+		log.Printf("could not cancel old order for %s due to %s", order.Symbol, err)
+		return
 	}
 
+	err = a.Client.ClosePosition(order.Symbol)
+
+	if err != nil {
+		log.Printf("could not liqudate old position for %s due to %s", order.Symbol, err)
+		return
+	}
 }

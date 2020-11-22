@@ -4,6 +4,7 @@ import (
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 	"github.com/markcheno/go-talib"
 	"github.com/spf13/viper"
+	"log"
 )
 
 type Stock struct {
@@ -78,13 +79,13 @@ func (s *Stock) Update(close, low, high float64) {
 
 func (s *Stock) Snapshot() ([]float64, []float64, []float64, []float64, []float64, []float64, []float64) {
 	priceRaster := s.Price.Raster()
-	return priceRaster[len(priceRaster)-1-30:],
-		s.Macd[len(s.Macd)-1-30:],
-		s.Signal[len(s.Signal)-1-30:],
-		s.Trend[len(s.Trend)-1-30:],
-		s.Vel[len(s.Vel)-1-30:],
-		s.Acc[len(s.Acc)-1-30:],
-		s.Atr[len(s.Atr)-1-30:]
+	return priceRaster[len(priceRaster)-viper.GetInt("snapshot-lookback-min")-1:],
+		s.Macd[len(s.Macd)-viper.GetInt("snapshot-lookback-min")-1:],
+		s.Signal[len(s.Signal)-viper.GetInt("snapshot-lookback-min")-1:],
+		s.Trend[len(s.Trend)-viper.GetInt("snapshot-lookback-min")-1:],
+		s.Vel[len(s.Vel)-viper.GetInt("snapshot-lookback-min")-1:],
+		s.Acc[len(s.Acc)-viper.GetInt("snapshot-lookback-min")-1:],
+		s.Atr[len(s.Atr)-viper.GetInt("snapshot-lookback-min")-1:]
 }
 
 func getTrends(price []float64) ([]float64, []float64, []float64) {
@@ -142,6 +143,37 @@ func (s *Stock) IsPositiveMacdCrossOver() bool {
 		intersection.y < 0 // ensure that the crossover happened in negative space
 }
 
+func (s *Stock) IsNegativeMacdCrossUnder() bool {
+	macdStart := s.Macd[len(s.Macd)-2]
+	macdEnd := s.Macd[len(s.Macd)-1]
+	signalStart := s.Signal[len(s.Signal)-2]
+	signalEnd := s.Signal[len(s.Signal)-1]
+
+	ok, intersection := findIntersection(
+		point{
+			x: 1,
+			y: macdEnd,
+		},
+		point{
+			x: 0,
+			y: macdStart,
+		},
+		point{
+			x: 1,
+			y: signalEnd,
+		},
+		point{
+			x: 0,
+			y: signalStart,
+		})
+
+	return ok &&
+		intersection.x >= 0 && // ensure cross over happened in the last sample
+		intersection.x <= 1 && // ^
+		macdEnd < macdStart && // ensure it is a negative cross over event
+		intersection.y > 0 // ensure that the crossover happened in positive space
+}
+
 type point struct {
 	x, y float64
 }
@@ -173,4 +205,37 @@ func (s *Stock) IsBelowTrend() bool {
 
 func (s *Stock) IsUpwardsTrend() bool {
 	return s.Vel[len(s.Vel)-1] > 0 || s.Acc[len(s.Acc)-1] > 0
+}
+
+func (s Stock) LogSnapshot(action string, price, qty, takeProfit, stopLoss float64) {
+	p, m, i, t, v, a, r := s.Snapshot()
+	log.Printf("%s %s:\n\t"+
+		"price %v\n\t"+
+		"macd %v\n\t"+
+		"signal %v\n\t"+
+		"trend %v\n\t"+
+		"vel %v\n\t"+
+		"acc %v\n\t"+
+		"atr %v\n\t"+
+		"maxProfit: %f\n\t"+
+		"maxLoss: %v\n\t"+
+		"price: %f\n\t"+
+		"takeProfit: %f\n\t"+
+		"stopLoss: %f\n\t"+
+		"qty: %f",
+		action,
+		s.Symbol,
+		p[len(p)-viper.GetInt("snapshot-lookback-min")-1:],
+		m[len(m)-viper.GetInt("snapshot-lookback-min")-1:],
+		i[len(i)-viper.GetInt("snapshot-lookback-min")-1:],
+		t[len(t)-viper.GetInt("snapshot-lookback-min")-1:],
+		v[len(v)-viper.GetInt("snapshot-lookback-min")-1:],
+		a[len(a)-viper.GetInt("snapshot-lookback-min")-1:],
+		r[len(r)-viper.GetInt("snapshot-lookback-min")-1:],
+		(takeProfit-price)*qty,
+		(price-stopLoss)*qty,
+		price,
+		takeProfit,
+		stopLoss,
+		qty)
 }

@@ -9,6 +9,10 @@ macd:
 trend: 200
 atr: 14
 
+liqudate-after-min: 30
+
+snapshot-lookback-min: 120
+
 alpaca:
   key: ""
   secret: ""
@@ -25,25 +29,17 @@ stocks:
   - "PLTR"
   - "NKLA"
   - "FSLY"
-  - "EBAY"
   - "AMD"
   - "NVDA"
   - "AAPL"
   - "FUV"
   - "FCEL"
   - "NIO"
-  - "LUV"
   - "SPCE"
-  - "ALGM"
   - "TRIP"
   - "APPN"
   - "SQ"
   - "PYPL"
   - "SBUX"
-  - "MSFT"
-  - "AMZN"
   - "GOOG"
-  - "NFLX"
   - "SHOP"
-  - "MMM"
-  - "TSM"

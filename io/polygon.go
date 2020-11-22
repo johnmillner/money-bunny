@@ -63,6 +63,8 @@ func LiveUpdates(stocks map[string]*stock.Stock) {
 
 			if err != nil {
 				log.Panicf("ERROR: could not receive message from polygon %+v", err)
+				//todo recover
+				// panic: ERROR: could not receive message from polygon websocket: close 1006 (abnormal closure): unexpected EOF
 			}
 
 			inbox <- b

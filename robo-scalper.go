@@ -24,9 +24,10 @@ func main() {
 	stocks := a.GetHistoricalStocks(symbols, updates)
 	io.LiveUpdates(stocks)
 
-	go a.LiquidateOldPositions()
+	go MonitorCurrentPositions(a, stocks)
 
 	for s := range updates {
+
 		if a.CountTradesAndOrders() < 1 &&
 			s.IsBelowTrend() &&
 			s.IsUpwardsTrend() &&
@@ -35,37 +36,12 @@ func main() {
 			price, qty, takeProfit, stopLoss, stopLimit := getOrderParameters(s, a)
 			a.OrderBracket(s.Symbol, qty, takeProfit, stopLoss, stopLimit)
 
-			logSnapshot(s, price, qty, takeProfit, stopLoss)
+			s.LogSnapshot("buying", price, qty, takeProfit, stopLoss)
 
 			// time out to prevent double trading
 			time.Sleep(30 * time.Second)
 		}
 	}
-}
-
-func logSnapshot(s stock.Stock, price, qty, takeProfit, stopLoss float64) {
-	p, m, i, t, v, a, r := s.Snapshot()
-	log.Printf("ordered %s:\n\t"+
-		"price %v\n\t"+
-		"macd %v\n\t"+
-		"signal %v\n\t"+
-		"trend %v\n\t"+
-		"vel %v\n\t"+
-		"acc %v\n\t"+
-		"atr %v\n\t"+
-		"maxProfit: %v\n\t"+
-		"maxLoss: %v\n\t"+
-		"price: %f\n\t"+
-		"takeProfit: %f\n\t"+
-		"stopLoss: %f\n\t"+
-		"qty: %f",
-		s.Symbol, p, m, i, t, v, a, r,
-		(takeProfit-price)*qty,
-		(price-stopLoss)*qty,
-		price,
-		takeProfit,
-		stopLoss,
-		qty)
 }
 
 func getOrderParameters(s stock.Stock, a io.Alpaca) (float64, float64, float64, float64, float64) {
@@ -93,4 +69,40 @@ func getOrderParameters(s stock.Stock, a io.Alpaca) (float64, float64, float64, 
 	}
 
 	return price, qty, takeProfit, stopLoss, stopLimit
+}
+
+func MonitorCurrentPositions(a io.Alpaca, stocks map[string]*stock.Stock) {
+	time.Sleep(time.Until(time.Now().Round(time.Minute).Add(time.Minute).Add(2 * time.Second)))
+	log.Printf("monitoring current orders")
+
+	for {
+		go func() {
+			orders := a.ListOpenOrders()
+
+			for _, order := range orders {
+				// liquidate old orders
+				if order.SubmittedAt.Add(time.Duration(viper.GetInt("liquidate-after-min")) * time.Minute).Before(time.Now()) {
+					log.Printf("liqudating %s since it was too old", order.Symbol)
+					a.LiquidatePosition(order)
+
+				}
+
+				// check if this order should be sold due to macd crossover
+				s := stocks[order.Symbol]
+				if !s.IsBelowTrend() &&
+					!s.IsUpwardsTrend() &&
+					s.IsNegativeMacdCrossUnder() {
+					log.Printf("liqudating %s since it's macd has crossed over", order.Symbol)
+					a.LiquidatePosition(order)
+					position := a.GetPosition(order.Symbol)
+
+					price, _ := position.CurrentPrice.Float64()
+					qty, _ := position.Qty.Float64()
+					s.LogSnapshot("selling", price, qty, 0, 0)
+				}
+			}
+		}()
+
+		time.Sleep(time.Minute)
+	}
 }

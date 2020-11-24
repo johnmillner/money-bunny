@@ -6,7 +6,6 @@ import (
 	"github.com/go-echarts/go-echarts/v2/opts"
 	"github.com/johnmillner/robo-macd/config"
 	"github.com/johnmillner/robo-macd/io"
-	"github.com/johnmillner/robo-macd/stock"
 	"os"
 	"testing"
 )
@@ -16,7 +15,7 @@ func TestNewStock(t *testing.T) {
 
 	a := io.NewAlpaca()
 
-	stocks := a.GetHistoricalStocks([]string{"TSLA"}, make(chan stock.Stock))
+	stocks := a.GetHistoricalStocks([]string{"TSLA"})
 
 	s := stocks["TSLA"]
 
@@ -106,7 +105,7 @@ func TestNewStock(t *testing.T) {
 	// Where the magic happens
 	f, _ := os.Create("line.html")
 	page.SetLayout(components.PageFlexLayout)
-	page.Render(f)
+	_ = page.Render(f)
 }
 
 func convertToItems(array []float64) []opts.LineData {

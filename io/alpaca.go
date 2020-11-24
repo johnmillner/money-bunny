@@ -38,7 +38,6 @@ func (a Alpaca) GetHistoricalStocks(symbols []string) map[string]*stock.Stock {
 
 	for symbol, bar := range bars {
 		stocks[symbol] = stock.NewStock(symbol, bar)
-		stocks[symbol].LogSnapshot("logging", 0, 0, 0, 0)
 	}
 
 	return stocks

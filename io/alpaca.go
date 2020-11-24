@@ -1,12 +1,14 @@
 package io
 
 import (
+	"fmt"
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 	"github.com/alpacahq/alpaca-trade-api-go/common"
 	"github.com/johnmillner/robo-macd/stock"
 	"github.com/shopspring/decimal"
 	"github.com/spf13/viper"
 	"log"
+	"time"
 )
 
 type Alpaca struct {
@@ -21,7 +23,7 @@ func NewAlpaca() Alpaca {
 		})}
 }
 
-func (a Alpaca) GetHistoricalStocks(symbols []string, updates chan stock.Stock) map[string]*stock.Stock {
+func (a Alpaca) GetHistoricalStocks(symbols []string) map[string]*stock.Stock {
 	stocks := make(map[string]*stock.Stock)
 
 	limit := viper.GetInt("trend") + viper.GetInt("snapshot-lookback-min") + 2
@@ -35,12 +37,31 @@ func (a Alpaca) GetHistoricalStocks(symbols []string, updates chan stock.Stock) 
 	}
 
 	for symbol, bar := range bars {
-		stocks[symbol] = stock.NewStock(symbol, bar, updates)
+		stocks[symbol] = stock.NewStock(symbol, bar)
+		stocks[symbol].LogSnapshot("logging", 0, 0, 0, 0)
 	}
 
 	return stocks
 }
 
+func (a Alpaca) GetMarketTime() (time.Time, time.Time) {
+	today := time.Now().Format("2006-01-02")
+	times, err := a.Client.GetCalendar(&today, &today)
+
+	if err != nil {
+		log.Panicf("could not gather todays time due to %s", err)
+	}
+
+	marketOpen, err := time.Parse("2006-01-02T15:04:05", fmt.Sprintf("%sT%s", times[0].Date, times[0].Open))
+	marketClose, err := time.Parse("2006-01-02T15:04:05", fmt.Sprintf("%sT%s", times[0].Date, times[0].Close))
+
+	// if markets are not open today set the markets to open in the future and to close in the past
+	if today != times[0].Date {
+		return time.Now().Add(24 * time.Hour), time.Time{}
+	}
+
+	return marketOpen, marketClose
+}
 func (a Alpaca) OrderBracket(symbol string, qty, takeProfit, stopLoss, stopLimit float64) {
 	tp := decimal.NewFromFloat(takeProfit)
 	sl := decimal.NewFromFloat(stopLoss)
@@ -92,6 +113,17 @@ func (a Alpaca) GetPosition(symbol string) *alpaca.Position {
 	}
 
 	return position
+}
+
+func (a Alpaca) GetOrders(symbol string) []alpaca.Order {
+	orders := make([]alpaca.Order, 0)
+	for _, order := range a.ListOpenOrders() {
+		if order.Symbol == symbol {
+			orders = append(orders, order)
+		}
+	}
+
+	return orders
 }
 
 func (a Alpaca) ListPositions() []alpaca.Position {

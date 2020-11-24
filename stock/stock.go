@@ -11,10 +11,10 @@ type Stock struct {
 	Symbol                             string
 	Price, High, Low                   Ouroboros
 	Macd, Signal, Trend, Vel, Acc, Atr []float64
-	updates                            chan Stock
+	Updates                            chan Stock
 }
 
-func NewStock(symbol string, bar []alpaca.Bar, updates chan Stock) *Stock {
+func NewStock(symbol string, bar []alpaca.Bar) *Stock {
 	closingPrices := make([]float64, len(bar))
 	lowPrices := make([]float64, len(bar))
 	highPrices := make([]float64, len(bar))
@@ -49,7 +49,7 @@ func NewStock(symbol string, bar []alpaca.Bar, updates chan Stock) *Stock {
 		Vel:     vel,
 		Acc:     acc,
 		Atr:     atr,
-		updates: updates,
+		Updates: make(chan Stock, 100),
 	}
 }
 
@@ -74,18 +74,7 @@ func (s *Stock) Update(close, low, high float64) {
 		prices,
 		viper.GetInt("atr"))
 
-	s.updates <- *s
-}
-
-func (s *Stock) Snapshot() ([]float64, []float64, []float64, []float64, []float64, []float64, []float64) {
-	priceRaster := s.Price.Raster()
-	return priceRaster[len(priceRaster)-viper.GetInt("snapshot-lookback-min")-1:],
-		s.Macd[len(s.Macd)-viper.GetInt("snapshot-lookback-min")-1:],
-		s.Signal[len(s.Signal)-viper.GetInt("snapshot-lookback-min")-1:],
-		s.Trend[len(s.Trend)-viper.GetInt("snapshot-lookback-min")-1:],
-		s.Vel[len(s.Vel)-viper.GetInt("snapshot-lookback-min")-1:],
-		s.Acc[len(s.Acc)-viper.GetInt("snapshot-lookback-min")-1:],
-		s.Atr[len(s.Atr)-viper.GetInt("snapshot-lookback-min")-1:]
+	s.Updates <- *s
 }
 
 func getTrends(price []float64) ([]float64, []float64, []float64) {
@@ -112,7 +101,7 @@ func getTrends(price []float64) ([]float64, []float64, []float64) {
 	return trend, trendVelocity, trendAcceleration
 }
 
-func (s *Stock) IsPositiveMacdCrossOver() bool {
+func (s *Stock) IsBuyingMacdCrossOver() bool {
 	macdStart := s.Macd[len(s.Macd)-2]
 	macdEnd := s.Macd[len(s.Macd)-1]
 	signalStart := s.Signal[len(s.Signal)-2]
@@ -143,7 +132,7 @@ func (s *Stock) IsPositiveMacdCrossOver() bool {
 		intersection.y < 0 // ensure that the crossover happened in negative space
 }
 
-func (s *Stock) IsNegativeMacdCrossUnder() bool {
+func (s *Stock) IsSellingMacdCrossUnder() bool {
 	macdStart := s.Macd[len(s.Macd)-2]
 	macdEnd := s.Macd[len(s.Macd)-1]
 	signalStart := s.Signal[len(s.Signal)-2]
@@ -199,6 +188,14 @@ func findIntersection(a, b, c, d point) (bool, point) {
 	}
 }
 
+func (s *Stock) IsReadyToBuy() bool {
+	return s.IsBelowTrend() && s.IsUpwardsTrend() && s.IsBuyingMacdCrossOver()
+}
+
+func (s *Stock) IsReadyToSell() bool {
+	return !s.IsBelowTrend() && s.IsDownwardsTrend() && s.IsSellingMacdCrossUnder()
+}
+
 func (s *Stock) IsBelowTrend() bool {
 	return s.Price.Peek() < s.Trend[len(s.Trend)-1]
 }
@@ -207,13 +204,19 @@ func (s *Stock) IsUpwardsTrend() bool {
 	return s.Vel[len(s.Vel)-1] > 0 || s.Acc[len(s.Acc)-1] > 0
 }
 
+func (s *Stock) IsDownwardsTrend() bool {
+	return s.Vel[len(s.Vel)-1] < 0 || s.Acc[len(s.Acc)-1] < 0
+}
+
 func (s Stock) LogSnapshot(action string, price, qty, takeProfit, stopLoss float64) {
-	p, m, i, t, v, a, r := s.Snapshot()
+	priceRaster := s.Price.Raster()
+	log.Printf("%d %d", len(priceRaster), len(priceRaster)-viper.GetInt("snapshot-lookback-min"))
+	log.Printf("%v", priceRaster[len(priceRaster)-viper.GetInt("snapshot-lookback-min"):])
 	log.Printf("%s %s:\n\t"+
 		"price %v\n\t"+
+		"trend %v\n\t"+
 		"macd %v\n\t"+
 		"signal %v\n\t"+
-		"trend %v\n\t"+
 		"vel %v\n\t"+
 		"acc %v\n\t"+
 		"atr %v\n\t"+
@@ -225,13 +228,13 @@ func (s Stock) LogSnapshot(action string, price, qty, takeProfit, stopLoss float
 		"qty: %f",
 		action,
 		s.Symbol,
-		p[len(p)-viper.GetInt("snapshot-lookback-min")-1:],
-		m[len(m)-viper.GetInt("snapshot-lookback-min")-1:],
-		i[len(i)-viper.GetInt("snapshot-lookback-min")-1:],
-		t[len(t)-viper.GetInt("snapshot-lookback-min")-1:],
-		v[len(v)-viper.GetInt("snapshot-lookback-min")-1:],
-		a[len(a)-viper.GetInt("snapshot-lookback-min")-1:],
-		r[len(r)-viper.GetInt("snapshot-lookback-min")-1:],
+		priceRaster[len(priceRaster)-viper.GetInt("snapshot-lookback-min"):],
+		s.Trend[len(s.Trend)-viper.GetInt("snapshot-lookback-min"):],
+		s.Macd[len(s.Macd)-viper.GetInt("snapshot-lookback-min"):],
+		s.Signal[len(s.Signal)-viper.GetInt("snapshot-lookback-min"):],
+		s.Vel[len(s.Vel)-viper.GetInt("snapshot-lookback-min"):],
+		s.Acc[len(s.Acc)-viper.GetInt("snapshot-lookback-min"):],
+		s.Atr[len(s.Atr)-viper.GetInt("snapshot-lookback-min"):],
 		(takeProfit-price)*qty,
 		(price-stopLoss)*qty,
 		price,

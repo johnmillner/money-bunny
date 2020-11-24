@@ -1,6 +1,8 @@
 risk: 0.01
 riskReward: 1.5
 stopLossMax: 0.5
+exposure-tolerance: .10
+margin: 0.0
 
 macd:
   fast: 12
@@ -9,9 +11,11 @@ macd:
 trend: 200
 atr: 14
 
-liqudate-after-min: 30
+liquidate-after-min: 30
+trade-after-open-min: 5
+close-before-close-min: 5
 
-snapshot-lookback-min: 120
+snapshot-lookback-min: 30
 
 alpaca:
   key: ""
@@ -20,26 +24,17 @@ polygon:
   key: ""
 
 stocks:
-  - "ZM"
-  - "UBER"
-  - "TSLA"
-  - "SNAP"
-  - "RKT"
-  - "PLUG"
-  - "PLTR"
-  - "NKLA"
   - "FSLY"
-  - "AMD"
-  - "NVDA"
-  - "AAPL"
   - "FUV"
+  - "RKT"
+  - "TSLA"
+  - "PLUG"
+  - "NKLA"
+  - "LUV"
   - "FCEL"
+  - "ZM"
+  - "PTON"
+  - "SNAP"
   - "NIO"
-  - "SPCE"
-  - "TRIP"
-  - "APPN"
-  - "SQ"
-  - "PYPL"
-  - "SBUX"
-  - "GOOG"
-  - "SHOP"
+  - "PLTR"
+

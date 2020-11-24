@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/viper"
 	"log"
 	"math"
+	"sync"
 	"time"
 )
 
@@ -18,40 +19,83 @@ func main() {
 
 	symbols := viper.GetStringSlice("stocks")
 
-	updates := make(chan stock.Stock, 10000)
-
 	a := io.NewAlpaca()
-	stocks := a.GetHistoricalStocks(symbols, updates)
+	stocks := a.GetHistoricalStocks(symbols)
 	io.LiveUpdates(stocks)
 
-	go MonitorCurrentPositions(a, stocks)
+	wg := sync.WaitGroup{}
+	defer wg.Wait()
 
-	for s := range updates {
+	for _, symbol := range symbols {
+		wg.Add(1)
+		go monitorStock(stocks[symbol], a)
+	}
+}
 
-		if a.CountTradesAndOrders() < 1 &&
-			s.IsBelowTrend() &&
-			s.IsUpwardsTrend() &&
-			s.IsPositiveMacdCrossOver() {
+func monitorStock(stock *stock.Stock, a io.Alpaca) {
+	marketOpen, marketClose := a.GetMarketTime()
+	marketGetIn := marketOpen.Add(time.Duration(viper.GetInt("trade-after-open-min")) * time.Minute)
+	marketGetOut := marketClose.Add(time.Duration(viper.GetInt("close-before-close-min")) * time.Minute)
 
-			price, qty, takeProfit, stopLoss, stopLimit := getOrderParameters(s, a)
-			a.OrderBracket(s.Symbol, qty, takeProfit, stopLoss, stopLimit)
+	for update := range stock.Updates {
+		orders := a.GetOrders(stock.Symbol)
+		for _, order := range orders {
+			// sell all orders if close to marketClose
+			if marketGetOut.After(marketClose) {
+				log.Printf("liqudating %s since it's close to market close %v current time %v",
+					order.Symbol,
+					marketClose,
+					time.Now().UTC())
+				a.LiquidatePosition(order)
+				continue
+			}
 
-			s.LogSnapshot("buying", price, qty, takeProfit, stopLoss)
+			// remove old order/positions
+			if order.SubmittedAt.Add(time.Duration(viper.GetInt("liquidate-after-min")) * time.Minute).
+				Before(time.Now()) {
+				log.Printf("liqudating %s since it was too old submitted at %v current time %v",
+					order.Symbol,
+					order.SubmittedAt,
+					time.Now().UTC())
+				a.LiquidatePosition(order)
+				continue
+			}
 
-			// time out to prevent double trading
-			time.Sleep(30 * time.Second)
+			// check if stock should be sold because of macd signal
+			if update.IsReadyToSell() {
+				qty, _ := order.Qty.Float64()
+				update.LogSnapshot("selling", update.Price.Peek(), qty, 0, 0)
+				a.LiquidatePosition(order)
+				continue
+			}
+		}
+
+		// check if this stock is good to buy
+		if marketGetIn.Before(time.Now()) && marketGetOut.After(time.Now()) && update.IsReadyToBuy() {
+			withinRisk, price, qty, takeProfit, stopLoss, stopLimit := getOrderParameters(update, a)
+
+			// check if trade is too risky or too boring
+			if !withinRisk {
+				update.LogSnapshot("skipping", price, qty, takeProfit, stopLoss)
+				continue
+			}
+
+			a.OrderBracket(update.Symbol, qty, takeProfit, stopLoss, stopLimit)
+			update.LogSnapshot("buying", price, qty, takeProfit, stopLoss)
 		}
 	}
 }
 
-func getOrderParameters(s stock.Stock, a io.Alpaca) (float64, float64, float64, float64, float64) {
+func getOrderParameters(s stock.Stock, a io.Alpaca) (bool, float64, float64, float64, float64, float64) {
 	quote := io.GetQuote(s.Symbol)
 	portfolio := a.GetPortfolioValue()
 	portfolioRisk := viper.GetFloat64("risk")
+	numberOfStocks := float64(len(viper.GetStringSlice("stocks")))
+	marginPercent := viper.GetFloat64("margin")
+
+	exposure := portfolio / numberOfStocks * portfolioRisk * (1 + marginPercent)
 
 	atr := s.Atr[len(s.Atr)-1]
-	exposure := portfolio * portfolioRisk
-
 	price := quote.Last.Askprice - (quote.Last.Askprice-quote.Last.Bidprice)/2
 
 	tradeRisk := 2 * atr
@@ -63,46 +107,16 @@ func getOrderParameters(s stock.Stock, a io.Alpaca) (float64, float64, float64, 
 	stopLimit := price - (1+stopLossMax)*tradeRisk
 
 	qty := math.Round(math.Min(exposure/tradeRisk, portfolio/quote.Last.Askprice))
+
 	//ensure we dont go over
 	for qty*price > portfolio {
 		qty = qty - 1
 	}
 
-	return price, qty, takeProfit, stopLoss, stopLimit
-}
+	// ensure that risk is not too boring or risky to be worth trading
+	withinRisk :=
+		stopLoss < exposure*(1-viper.GetFloat64("exposure-tolerance")) ||
+			stopLoss > exposure*(1+viper.GetFloat64("exposure-tolerance"))
 
-func MonitorCurrentPositions(a io.Alpaca, stocks map[string]*stock.Stock) {
-	time.Sleep(time.Until(time.Now().Round(time.Minute).Add(time.Minute).Add(2 * time.Second)))
-	log.Printf("monitoring current orders")
-
-	for {
-		go func() {
-			orders := a.ListOpenOrders()
-
-			for _, order := range orders {
-				// liquidate old orders
-				if order.SubmittedAt.Add(time.Duration(viper.GetInt("liquidate-after-min")) * time.Minute).Before(time.Now()) {
-					log.Printf("liqudating %s since it was too old", order.Symbol)
-					a.LiquidatePosition(order)
-
-				}
-
-				// check if this order should be sold due to macd crossover
-				s := stocks[order.Symbol]
-				if !s.IsBelowTrend() &&
-					!s.IsUpwardsTrend() &&
-					s.IsNegativeMacdCrossUnder() {
-					log.Printf("liqudating %s since it's macd has crossed over", order.Symbol)
-					a.LiquidatePosition(order)
-					position := a.GetPosition(order.Symbol)
-
-					price, _ := position.CurrentPrice.Float64()
-					qty, _ := position.Qty.Float64()
-					s.LogSnapshot("selling", price, qty, 0, 0)
-				}
-			}
-		}()
-
-		time.Sleep(time.Minute)
-	}
+	return withinRisk, price, qty, takeProfit, stopLoss, stopLimit
 }

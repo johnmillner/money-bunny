@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/viper"
 	"log"
 	"math"
+	"runtime/debug"
 	"sync"
 	"time"
 )
@@ -17,34 +18,55 @@ func main() {
 	// read in configs
 	config.Config()
 
-	symbols := viper.GetStringSlice("stocks")
-
-	a := io.NewAlpaca()
-	stocks := a.GetHistoricalStocks(symbols)
-	io.LiveUpdates(stocks)
-
 	wg := sync.WaitGroup{}
+	wg.Add(1)
 	defer wg.Wait()
 
-	for _, symbol := range symbols {
-		wg.Add(1)
-		go monitorStock(stocks[symbol], a)
-	}
+	go recovery(time.Now(), func() {
+		symbols := viper.GetStringSlice("stocks")
+
+		a := io.NewAlpaca()
+		stocks := a.GetHistoricalStocks(symbols)
+		io.LiveUpdates(stocks)
+
+		for _, symbol := range symbols {
+			go monitorStock(stocks[symbol], a)
+		}
+	})
 }
 
-func monitorStock(stock *stock.Stock, a io.Alpaca) {
-	marketOpen, marketClose := a.GetMarketTime()
+func recovery(start time.Time, f func()) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Printf("recovering from panic %v", err)
+			debug.PrintStack()
+			if start.Add(time.Duration(viper.GetInt("recover-frequency-min")) * time.Minute).Before(time.Now()) {
+				log.Panicf("too many panics - will not recover due to %v", err)
+			}
+
+			go recovery(time.Now(), f)
+		}
+	}()
+
+	f()
+}
+
+func monitorStock(stock *stock.Stock, a *io.Alpaca) {
+	_, marketOpen, marketClose := a.GetMarketTime()
+
 	marketGetIn := marketOpen.Add(time.Duration(viper.GetInt("trade-after-open-min")) * time.Minute)
-	marketGetOut := marketClose.Add(time.Duration(viper.GetInt("close-before-close-min")) * time.Minute)
+	marketGetOut := marketClose.Add(-1 * time.Duration(viper.GetInt("close-before-close-min")) * time.Minute)
+
+	log.Printf("market times today are: open %v close %v", marketGetIn, marketGetOut)
 
 	for update := range stock.Updates {
 		orders := a.GetOrders(stock.Symbol)
 		for _, order := range orders {
 			// sell all orders if close to marketClose
-			if marketGetOut.After(marketClose) {
+			if marketGetOut.Before(time.Now()) {
 				log.Printf("liqudating %s since it's close to market close %v current time %v",
 					order.Symbol,
-					marketClose,
+					marketGetOut,
 					time.Now().UTC())
 				a.LiquidatePosition(order)
 				continue
@@ -70,8 +92,12 @@ func monitorStock(stock *stock.Stock, a io.Alpaca) {
 			}
 		}
 
+		if marketGetIn.After(time.Now()) || marketGetOut.Before(time.Now()) {
+			continue
+		}
+
 		// check if this stock is good to buy
-		if marketGetIn.Before(time.Now()) && marketGetOut.After(time.Now()) && update.IsReadyToBuy() {
+		if update.IsReadyToBuy() {
 			withinRisk, price, qty, takeProfit, stopLoss, stopLimit := getOrderParameters(update, a)
 
 			// check if trade is too risky or too boring
@@ -86,7 +112,7 @@ func monitorStock(stock *stock.Stock, a io.Alpaca) {
 	}
 }
 
-func getOrderParameters(s stock.Stock, a io.Alpaca) (bool, float64, float64, float64, float64, float64) {
+func getOrderParameters(s stock.Stock, a *io.Alpaca) (bool, float64, float64, float64, float64, float64) {
 	quote := io.GetQuote(s.Symbol)
 	portfolio := a.GetPortfolioValue()
 	portfolioRisk := viper.GetFloat64("risk")
@@ -109,14 +135,9 @@ func getOrderParameters(s stock.Stock, a io.Alpaca) (bool, float64, float64, flo
 	qty := math.Round(math.Min(exposure/tradeRisk, portfolio/quote.Last.Askprice))
 
 	//ensure we dont go over
-	for qty*price > portfolio {
+	for qty*price > portfolio/numberOfStocks {
 		qty = qty - 1
 	}
 
-	// ensure that risk is not too boring or risky to be worth trading
-	withinRisk :=
-		stopLoss < exposure*(1-viper.GetFloat64("exposure-tolerance")) ||
-			stopLoss > exposure*(1+viper.GetFloat64("exposure-tolerance"))
-
-	return withinRisk, price, qty, takeProfit, stopLoss, stopLimit
+	return true, price, qty, takeProfit, stopLoss, stopLimit
 }

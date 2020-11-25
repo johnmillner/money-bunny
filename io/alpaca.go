@@ -15,8 +15,8 @@ type Alpaca struct {
 	Client *alpaca.Client
 }
 
-func NewAlpaca() Alpaca {
-	return Alpaca{
+func NewAlpaca() *Alpaca {
+	return &Alpaca{
 		Client: alpaca.NewClient(&common.APIKey{
 			ID:     viper.GetString("alpaca.key"),
 			Secret: viper.GetString("alpaca.secret"),
@@ -43,7 +43,7 @@ func (a Alpaca) GetHistoricalStocks(symbols []string) map[string]*stock.Stock {
 	return stocks
 }
 
-func (a Alpaca) GetMarketTime() (time.Time, time.Time) {
+func (a Alpaca) GetMarketTime() (bool, time.Time, time.Time) {
 	today := time.Now().Format("2006-01-02")
 	times, err := a.Client.GetCalendar(&today, &today)
 
@@ -51,16 +51,22 @@ func (a Alpaca) GetMarketTime() (time.Time, time.Time) {
 		log.Panicf("could not gather todays time due to %s", err)
 	}
 
-	marketOpen, err := time.Parse("2006-01-02T15:04:05", fmt.Sprintf("%sT%s", times[0].Date, times[0].Open))
-	marketClose, err := time.Parse("2006-01-02T15:04:05", fmt.Sprintf("%sT%s", times[0].Date, times[0].Close))
-
-	// if markets are not open today set the markets to open in the future and to close in the past
-	if today != times[0].Date {
-		return time.Now().Add(24 * time.Hour), time.Time{}
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		log.Panicf("could not parse timezone due to %s", err)
+	}
+	marketOpen, err := time.ParseInLocation("2006-01-02T15:04", fmt.Sprintf("%sT%s", times[0].Date, times[0].Open), loc)
+	if err != nil {
+		log.Panicf("could not parse time due to %s", err)
+	}
+	marketClose, err := time.ParseInLocation("2006-01-02T15:04", fmt.Sprintf("%sT%s", times[0].Date, times[0].Close), loc)
+	if err != nil {
+		log.Panicf("could not parse time due to %s", err)
 	}
 
-	return marketOpen, marketClose
+	return today != times[0].Date, marketOpen, marketClose
 }
+
 func (a Alpaca) OrderBracket(symbol string, qty, takeProfit, stopLoss, stopLimit float64) {
 	tp := decimal.NewFromFloat(takeProfit)
 	sl := decimal.NewFromFloat(stopLoss)

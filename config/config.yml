@@ -2,7 +2,7 @@ risk: 0.01
 riskReward: 1.5
 stopLossMax: 0.5
 exposure-tolerance: .10
-margin: 0.0
+margin: 4.00
 
 macd:
   fast: 12
@@ -12,10 +12,11 @@ trend: 200
 atr: 14
 
 liquidate-after-min: 30
-trade-after-open-min: 5
-close-before-close-min: 5
+trade-after-open-min: 0
+close-before-close-min: 2
 
 snapshot-lookback-min: 30
+recover-frequency-min: 5
 
 alpaca:
   key: ""
@@ -29,11 +30,8 @@ stocks:
   - "RKT"
   - "TSLA"
   - "PLUG"
-  - "NKLA"
-  - "LUV"
   - "FCEL"
   - "ZM"
-  - "PTON"
   - "SNAP"
   - "NIO"
   - "PLTR"

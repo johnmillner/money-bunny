@@ -210,8 +210,7 @@ func (s *Stock) IsDownwardsTrend() bool {
 
 func (s Stock) LogSnapshot(action string, price, qty, takeProfit, stopLoss float64) {
 	priceRaster := s.Price.Raster()
-	log.Printf("%d %d", len(priceRaster), len(priceRaster)-viper.GetInt("snapshot-lookback-min"))
-	log.Printf("%v", priceRaster[len(priceRaster)-viper.GetInt("snapshot-lookback-min"):])
+
 	log.Printf("%s %s:\n\t"+
 		"price %v\n\t"+
 		"trend %v\n\t"+

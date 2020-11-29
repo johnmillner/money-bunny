@@ -32,23 +32,40 @@ jobs:
       - name: Build
         run: go build -v .
 
-      - name: Test
-        env:
-          BUNNY_ALPACA.KEY: ${{secrets.ALPACA_PAPER_KEY}}
-          BUNNY_ALPACA.SECRET: ${{secrets.ALPACA_PAPER_SECRET}}
-        run: go test -v ./...
+  test:
+    name: Test
+    env:
+      BUNNY_ALPACA.KEY: ${{secrets.ALPACA_PAPER_KEY}}
+      BUNNY_ALPACA.SECRET: ${{secrets.ALPACA_PAPER_SECRET}}
+    run: go test -v ./...
 
-      - name: Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+  release:
+    name: Release
+    id: create_release
+    uses: actions/create-release@v1
+    env:
+      GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+    with:
+      tag_name: ${{github.ref}}
+      release_name: Release ${{github.ref}}
+      body: |
+        Changes in this Release
+        - First Change
+        - Second Change
+      draft: false
+      prerelease: false
+
+  executables:
+    name: Generate cross-platform builds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v2
+      - name: Generate build files
+        uses: thatisuday/go-cross-build@v1
         with:
-          tag_name: ${{github.ref}}
-          release_name: Release ${{github.ref}}
-          body: |
-            Changes in this Release
-            - First Change
-            - Second Change
-          draft: false
-          prerelease: false
+          platforms: 'linux/amd64, darwin/amd64, windows/amd64'
+          package: 'demo'
+          name: 'program'
+          compress: 'true'
+          dest: 'dist'

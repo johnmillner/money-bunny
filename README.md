@@ -90,7 +90,19 @@ clone or download the package - and run `go run bunny.go`
 
 # Logging
 while the program is running, the console will log all trades, including symbol, price, take profit, stop loss, stop limit, and qty
+```
+2020/11/29 02:34:08 buying NHC:
+	total: 22332.509254
+	qty: 349.000000
+	maxProfit: 375.502682
+	maxLoss: 250.33512142059453
+	price: 63.989998
+	takeProfit: 65.065937
+	stopLoss: 63.272705
+```
 inside of snapshots directory there will be html pages showing the graphs of the stock bought which it based its decision on
+they will be named with the time it was purchased and the stock given
+![graphs html showing stock snapshot during buy](example/graphExample.png?raw=true "graphs html showing stock snapshot during buy")
 
 # Disclaimer
 As with all things, both common sense and within the GPL-3.0 License agreed to on use of this program, 

@@ -50,8 +50,8 @@ func buy(a *io.Alpaca) {
 	symbols := io.FilterByTradability(a)
 	symbols = io.FilterByRisk(a, symbols)
 
-	stocks := a.GetStocks(symbols)
-	stocks = io.FilterByBuyable(stocks)
+	stocks := a.GetStocks(symbols...)
+	stocks = io.FilterByBuyable(stocks...)
 
 	budget := calculateBudget(a, len(stocks))
 
@@ -74,7 +74,7 @@ func buy(a *io.Alpaca) {
 }
 
 func calculateBudget(a *io.Alpaca, eligibleStocks int) float64 {
-	return a.GetBuyingPower() / float64(eligibleStocks)
+	return a.GetBuyingPower() * viper.GetFloat64("buying-power") / float64(eligibleStocks)
 }
 
 func sell(a *io.Alpaca, out time.Time) {
@@ -101,7 +101,7 @@ func sell(a *io.Alpaca, out time.Time) {
 		}
 
 		// check if this order should be sold
-		if update := a.GetStock(order.Symbol); update.IsReadyToSell() {
+		if update := a.GetStocks(order.Symbol)[0]; update.IsReadyToSell() {
 			qty, _ := order.Qty.Float64()
 			go update.LogSnapshot("selling", update.Price.Peek(), qty, 0, 0)
 			a.LiquidatePosition(order)
@@ -114,9 +114,9 @@ func getOrderParameters(s stock.Stock, a *io.Alpaca, budget float64) (float64, f
 	exposure := budget * viper.GetFloat64("risk")
 	price := float64(quote.Last.AskPrice - (quote.Last.AskPrice-quote.Last.BidPrice)/2)
 
-	tradeRisk := 2 * s.Atr[len(s.Atr)-1]
-	rewardToRisk := viper.GetFloat64("riskReward")
-	stopLossMax := viper.GetFloat64("stopLossMax")
+	tradeRisk := viper.GetFloat64("stop-loss-atr-ratio") * s.Atr[len(s.Atr)-1]
+	rewardToRisk := viper.GetFloat64("risk-reward")
+	stopLossMax := viper.GetFloat64("stop-loss-max")
 
 	takeProfit := price + (rewardToRisk * tradeRisk)
 	stopLoss := price - tradeRisk

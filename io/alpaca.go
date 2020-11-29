@@ -23,7 +23,7 @@ func NewAlpaca() *Alpaca {
 		})}
 }
 
-func (a Alpaca) GetStocks(symbols []string) []stock.Stock {
+func (a Alpaca) GetStocks(symbols ...string) []stock.Stock {
 	stocks := make([]stock.Stock, 0)
 
 	limit := viper.GetInt("trend") + viper.GetInt("snapshot-lookback-min") + 2
@@ -47,25 +47,6 @@ func (a Alpaca) GetStocks(symbols []string) []stock.Stock {
 	return stocks
 }
 
-func (a Alpaca) GetStock(symbol string) stock.Stock {
-
-	limit := viper.GetInt("trend") + viper.GetInt("snapshot-lookback-min") + 2
-	bars, err := a.Client.ListBars([]string{symbol}, alpaca.ListBarParams{
-		Timeframe: "1Min",
-		Limit:     &limit,
-	})
-
-	if err != nil {
-		log.Panicf("could not gather historical prices due to %s", err)
-	}
-
-	if len(bars[symbol]) < limit {
-		log.Panicf("insufficient historical prices due to only having %d records", len(bars[symbol]))
-	}
-
-	return stock.NewStock(symbol, bars[symbol])
-}
-
 func (a Alpaca) GetMarketTime() (bool, time.Time, time.Time) {
 	today := time.Now().Format("2006-01-02")
 	times, err := a.Client.GetCalendar(&today, &today)
@@ -87,7 +68,7 @@ func (a Alpaca) GetMarketTime() (bool, time.Time, time.Time) {
 		log.Panicf("could not parse time due to %s", err)
 	}
 
-	return today != times[0].Date, marketOpen, marketClose
+	return today == times[0].Date, marketOpen, marketClose
 }
 
 func (a Alpaca) OrderBracket(symbol string, qty, takeProfit, stopLoss, stopLimit float64) {
@@ -150,7 +131,7 @@ func (a Alpaca) LiquidatePosition(order alpaca.Order) {
 	err = a.Client.ClosePosition(order.Symbol)
 
 	if err != nil {
-		log.Panicf("could not liqudate old position for %s due to %s", order.Symbol, err)
+		log.Printf("could not liqudate old position for %s due to %s", order.Symbol, err)
 	}
 }
 

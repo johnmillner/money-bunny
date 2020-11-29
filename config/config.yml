@@ -1,16 +1,25 @@
 # amount of buying power that should be risked on any one trade - default 1% (0.01)
-# scenario: account is 100$, the max risk any one trade should have if lost is 1$
+# scenario: buying power is 100$, the max risk any one trade should have if lost is 1$
 risk: 0.01
 
 # ratio between the reward and risk
 # scenario: if risking 1$, reward should be 1.50$ - default 1.5
-riskReward: 1.5
+risk-reward: 1.5
+
+# multiplier to be used to calculate stop-loss from the ATR
+stop-loss-atr-ratio: 2
 
 # when setting the stop loss, a minimum floor should be set if the stock is fast falling - defaults  50% (0.5)
 # scenario: planning on buying a stock at 10$/share, stopLoss begins when price hits 9$,
 #   stopLossMax at 50% means it will accept sells down to 8.5$
 #   in the event the stock is falling so fast and it goes below 8.5$ - it will not sell and instead wait for it come back up
-stopLossMax: 0.5
+stop-loss-max: 0.5
+
+# the amount of the total account (including margin) to be played with - default 75% (0.75) - max 1.00
+# scenario: buying power is gathered from alpaca directly, and it will include a 4x margin
+#   by selecting .75, you are using 3x margin - and keeping the other 1x as buffer during fluctuations
+#   if not wanting to use margin at all, please set the value to 0.25 or less
+buying-power: 0.75
 
 # when scanning for stocks to choose from, we want to target stocks with enough risk/reward to be worth trading
 #   the amount of exposure is calculated from the #risk field and the stocks latest ATR value
@@ -19,7 +28,7 @@ stopLossMax: 0.5
 #   that is not worth the risk, and it would be better to focus on a more risky stock
 #   on the flipside, there is an extremely volatile stock that we may need to avoid because we might not be able to get
 #   into and out of the stock in good time
-exposure-tolerance: .10
+exposure-tolerance: 0.10
 
 # MACD is used to determine buying/selling indicators - default periods are 12, 26, 9
 macd:

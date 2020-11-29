@@ -84,14 +84,14 @@ func FilterByRisk(a *Alpaca, symbols []string) []string {
 }
 
 func meetsRiskGoal(stock *stock.Stock) bool {
-	tradeRisk := 2 * stock.Atr[len(stock.Atr)-1] / stock.Price.Peek()
+	tradeRisk := viper.GetFloat64("stop-loss-atr-ratio") * stock.Atr[len(stock.Atr)-1] / stock.Price.Peek()
 	upperRisk := viper.GetFloat64("risk") * (1 + viper.GetFloat64("exposure-tolerance"))
 	lowerRisk := viper.GetFloat64("risk") * (1 - viper.GetFloat64("exposure-tolerance"))
 
 	return tradeRisk > lowerRisk && tradeRisk < upperRisk
 }
 
-func FilterByBuyable(stocks []stock.Stock) []stock.Stock {
+func FilterByBuyable(stocks ...stock.Stock) []stock.Stock {
 	buyableStocks := make([]stock.Stock, 0)
 	for _, potential := range stocks {
 		if potential.IsReadyToBuy() {

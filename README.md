@@ -4,7 +4,7 @@
 # Code/Testing In Progress - Don't trust your money with this yet :) 
 
 # Money Bunny
-This is a day trading stock scanner and robo-trader that searching all US stocks and attempts to find stocks with a 
+This is a day trading stock scanner and robo-trader that searches all US stocks and attempts to find stocks with a 
 good risk-reward ratio and that are at the start of an upward trend. 
 
 # Configuration

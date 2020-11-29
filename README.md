@@ -17,9 +17,11 @@ additional configurations can be found inside of config/config.yml to control ri
 equally these can be overriden by environment variables with the prefix `BUNNY_`
 
 ## Customizing Configuration Values
-The configuration values already supplied have been tested to be profitable in paper trading accounts. <br>
-if wanting to change those values to meet your own preferences, please ensure to trial them in a paper trading account. <br>
-funny things can always happen when messing with values, so test to ensure that you dont blow up your account!
+The configuration values already supplied have been tested to be profitable in paper trading accounts.
+
+If wanting to change those values to meet your own preferences, please ensure to trial them in a paper trading account. 
+
+Funny things can always happen when messing with values, so test to ensure that you dont blow up your account!
 
 # Running 
 Pre-Requisites:

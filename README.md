@@ -1,64 +1,110 @@
 ![Go](https://github.com/johnmillner/robo-macd/workflows/Go/badge.svg)
 
 
-# Code In Progress - Don't trust your money with this yet :) 
+# Code/Testing In Progress - Don't trust your money with this yet :) 
 
-# Stock Conveyor 
-Robo-Advisor that will trade stocks based off of MACD crossover
+# Money Bunny
+This is a day trading stock scanner and robo-trader that searching all US stocks and attempts to find stocks with a 
+good risk-reward ratio and that are at the start of an upward trend. 
 
+# Configuration
+in the config.yml add your alpaca key, secret
+Alternatively, these values can be stored as environment variables at 
+- BUNNY_ALPACA.KEY
+- BUNNY_ALPACA.SECRET
 
-Strategy inspired by the video here by [Trading Rush](https://www.youtube.com/watch?v=nmffSjdZbWQ):
+additional configurations can be found inside of config/config.yml to control risk, reward, and so on
+equally these can be overriden by environment variables with the prefix `BUNNY_`
 
-[![MACD explanation video from Trading Rush](https://img.youtube.com/vi/nmffSjdZbWQ/0.jpg)](https://www.youtube.com/watch?v=nmffSjdZbWQ)
+## Customizing Configuration Values
+The configuration values already supplied have been tested to be profitable in paper trading accounts. <br>
+if wanting to change those values to meet your own preferences, please ensure to trial them in a paper trading account. <br>
+funny things can always happen when messing with values, so test to ensure that you dont blow up your account!
 
-# Concept
-This program will scan the stock market - determining which stocks are having a MACD Crossover event. 
-When it determines that a stock is crossing over positively, it will initiate a buy order - and equally when it determines 
-a held stock is crossing over negatively, it will initiate a sell order. 
-Multiple time scans can be run in parallel such that there are essentially conveyor belts of opportunities available. 
+# Running 
+Pre-Requisites:
+- an account with [Alpaca](https://alpaca.markets/)
+- an account with at least 25k in it to survive [PDT rule](https://www.investopedia.com/terms/p/patterndaytrader.asp)
+- add your credentials to the program either through config/config.yml or through environment variables
 
-For Pattern Day Trading reasons, the example is configured to not buy/sell an equity on the same day. 
+clone or download the package - and run `go run bunny.go`
 
-There could be a conveyor belt fo 1hr period, 4hr period, 1 day, etc periods all running in parallel playing short 
-term swing trades as well as longer term plays - with different stocks bought (entering the conveyor belt) and sold (exiting the conveyor belt) asynchronously
+# Alpaca
+[Alpaca](https://alpaca.markets/) is an API first, 0 commission broker that is used by this robo-trader to interact with equity markets
 
-# To Use
-... todo
+# Strategy
+## Buy
+- find all stocks
+- filter out the stocks that are outside of our wanted risk by using ATR indicator
+    - ```go
+        func meetsRiskGoal(stock *stock.Stock) bool {
+        	tradeRisk := viper.GetFloat64("stop-loss-atr-ratio") * stock.Atr[len(stock.Atr)-1] / stock.Price.Peek()
+        	upperRisk := viper.GetFloat64("risk") * (1 + viper.GetFloat64("exposure-tolerance"))
+        	lowerRisk := viper.GetFloat64("risk") * (1 - viper.GetFloat64("exposure-tolerance"))
+        
+        	return tradeRisk > lowerRisk && tradeRisk < upperRisk
+        }
+        ```
+- filter out the stocks that do not have an entry signal in the past minute using MACD and Trend indicator
+    -  ```go
+       func (s *Stock) IsReadyToBuy() bool {
+       	return s.IsBelowTrend() && s.IsUpwardsTrend() && s.IsBuyingMacdCrossOver()
+       }
+        ``` 
+- buy those stocks calculating stopLoss and takeProfit from the ATR and configured risk parameters
+    - ```go
+        func getOrderParameters(s stock.Stock, a *io.Alpaca, budget float64) (float64, float64, float64, float64, float64) {
+        	quote := a.GetQuote(s.Symbol)
+        	exposure := budget * viper.GetFloat64("risk")
+        	price := float64(quote.Last.AskPrice - (quote.Last.AskPrice-quote.Last.BidPrice)/2)
+        
+        	tradeRisk := 2 * s.Atr[len(s.Atr)-1]
+        	rewardToRisk := viper.GetFloat64("risk-reward")
+        	stopLossMax := viper.GetFloat64("stop-loss-max")
+        
+        	takeProfit := price + (rewardToRisk * tradeRisk)
+        	stopLoss := price - tradeRisk
+        	stopLimit := price - (1+stopLossMax)*tradeRisk
+        
+        	qty := math.Round(exposure / tradeRisk)
+        
+        	//ensure we dont go over
+        	for qty * price > budget {
+        		qty = qty - 1
+        	}
+        
+        	return price, qty, takeProfit, stopLoss, stopLimit
+        }
+        ```
+ 
+## Sell
+- sell all stocks if the market is close to closing (2m)
+- sell all stocks if they have not closed within a defined time (30m)
+- sell a stock if it has meet its take-profit or stop-loss (completing automatically with bracket orders during buy)
+- sell a stock if the MACD and Trend indicators show an exit indication
+    - ```go
+        func (s *Stock) IsReadyToSell() bool {
+            return !s.IsBelowTrend() && s.IsDownwardsTrend() && s.IsSellingMacdCrossUnder()
+        }
+        ```
 
-# Structure
-[Diagrams found in draw.io](https://app.diagrams.net/?lightbox=1&highlight=0000ff&edit=_blank&layers=1&nav=1&title=RoboAdvisor#Uhttps%3A%2F%2Fdrive.google.com%2Fuc%3Fid%3D1fZWEaOWSyaqYmPYYk0OZuidXkcBH2hcp%26export%3Ddownload)
+# Disclaimer
+As with all things, both common sense and within the GPL-3.0 License agreed to on use of this program, 
+there is no guarantee, warranty, or liability agreed or expressed when using this program. 
 
-## Alpaca
-[Alpaca](https://alpaca.markets/) is an API first, 0 commission broker that is used by this robo-advisor to interact with equity markets
+While this program is made in good faith to be profitable and bug-free - there is no promise of profits.
+There is however, risk. Risk of losing money. Risk of margin-call. 
 
-## Gatherers
-Gathers data from a Broker (in this case Alpaca) and transforms to a canonical representation that is then sent to a Transformer
-### Price Streamer
-Streams in live prices from targeted equities (from configuration/UI) using Alpaca API
-### Price Fetcher
-fetches historical prices from targeted equities (from configuration/UI) using Alpaca API
+This program is designed to day-trade any stock that meets certain mathematical technical indicators. 
+There is no advisory involved, and it views equities as a collection of numbers, 
+and its decisions as a series of potentially flawed equations. 
+It is important to understand that there is significant risk in 
+- market instability
+- day trading
+- use of margin
+- relying heavily on technical indicators
 
-## Transformer
-Takes in the gatherer's data and transforms to wanted structure (in this base case - MACD)
-### MACD Transformer
-groups and transforms the raw price data from the gathers into a MACD chart
+This program also uses margin by default - if unfamiliar with that risk - 
+or if not wanting that additional risk, please ensure to set "buying-power" in the config to 0.25 or less 
 
-## Manager
-Takes in the Transformed Data from the Transformers and determines for each targeted equity whether to buy/sell/hold that equity
-### MACD Manager
-takes in MACD Transformers chart and determines whether to buy, sell, or hold the stock at this moment
-
-## Executor
-Takes in the Managers high level decisions and translates them into actions to take place in the broker, managing the low level portfolio
-
-## Coordinator
-acts as the "main" of the program, instantiating the service and acting as a coordination hub for configurations
-
-## UI
-Provides ways to view the account, gains, trades, win/loss rate, and allows for the configuration of:
- * targeted equities and frequencies for the gathers
- * specific configurations for the gatherer(s)
- * specific configurations for the transformer(s)
- * specific configurations for the managers(s)
- * specific configurations for the executor
-
+As a general rule of thumb: do not trade with money you cannot lose.

@@ -1,4 +1,4 @@
-![Go](https://github.com/johnmillner/robo-macd/workflows/Go/badge.svg)
+![Go](https://github.com/johnmillner/money-bunny/workflows/Go/badge.svg)
 
 
 # Code/Testing In Progress - Don't trust your money with this yet :) 

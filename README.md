@@ -56,9 +56,9 @@ clone or download the package - and run `go run bunny.go`
         func getOrderParameters(s stock.Stock, a *io.Alpaca, budget float64) (float64, float64, float64, float64, float64) {
         	quote := a.GetQuote(s.Symbol)
         	exposure := budget * viper.GetFloat64("risk")
-        	price := float64(quote.Last.AskPrice - (quote.Last.AskPrice-quote.Last.BidPrice)/2)
-        
-        	tradeRisk := 2 * s.Atr[len(s.Atr)-1]
+        	price := float64(quote.Last.AskPrice - (quote.Last.AskPrice-quote.Last.BidPrice)/2)      
+        	
+        	tradeRisk := viper.GetFloat64("stop-loss-atr-ratio") * s.Atr[len(s.Atr)-1]
         	rewardToRisk := viper.GetFloat64("risk-reward")
         	stopLossMax := viper.GetFloat64("stop-loss-max")
         
@@ -87,6 +87,10 @@ clone or download the package - and run `go run bunny.go`
             return !s.IsBelowTrend() && s.IsDownwardsTrend() && s.IsSellingMacdCrossUnder()
         }
         ```
+
+# Logging
+while the program is running, the console will log all trades, including symbol, price, take profit, stop loss, stop limit, and qty
+inside of snapshots directory there will be html pages showing the graphs of the stock bought which it based its decision on
 
 # Disclaimer
 As with all things, both common sense and within the GPL-3.0 License agreed to on use of this program, 

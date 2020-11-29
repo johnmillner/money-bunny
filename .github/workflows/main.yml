@@ -1,5 +1,4 @@
-name: Go
-
+# on events
 on:
   push:
     branches: [ main ]

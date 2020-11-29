@@ -11,7 +11,7 @@ func Config() {
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath("config")
 	viper.EnvKeyReplacer(strings.NewReplacer("_", "."))
-	viper.SetEnvPrefix("RS")
+	viper.SetEnvPrefix("BUNNY")
 	viper.AutomaticEnv()
 	viper.WatchConfig()
 

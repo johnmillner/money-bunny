@@ -1,27 +1,65 @@
 package stock
 
 import (
+	"fmt"
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
+	"github.com/go-echarts/go-echarts/v2/charts"
+	"github.com/go-echarts/go-echarts/v2/components"
+	"github.com/go-echarts/go-echarts/v2/opts"
 	"github.com/markcheno/go-talib"
 	"github.com/spf13/viper"
 	"log"
+	"os"
+	"time"
 )
 
 type Stock struct {
-	Symbol                             string
-	Price, High, Low                   Ouroboros
-	Macd, Signal, Trend, Vel, Acc, Atr []float64
-	Updates                            chan Stock
+	Symbol                                  string
+	Price, High, Low                        Ouroboros
+	Macd, Signal, Trend, Vel, Acc, Atr, Vol []float64
+	Updates                                 chan Stock
 }
 
-func NewStock(symbol string, bar []alpaca.Bar) *Stock {
+func NewStockAtr(symbol string, bar []alpaca.Bar) *Stock {
 	closingPrices := make([]float64, len(bar))
 	lowPrices := make([]float64, len(bar))
 	highPrices := make([]float64, len(bar))
+	volume := make([]float64, len(bar))
+
 	for i, b := range bar {
 		closingPrices[i] = float64(b.Close)
 		lowPrices[i] = float64(b.Low)
 		highPrices[i] = float64(b.High)
+		volume[i] = float64(b.Volume)
+	}
+
+	atr := talib.Atr(
+		highPrices,
+		lowPrices,
+		closingPrices,
+		viper.GetInt("atr"))
+
+	return &Stock{
+		Symbol:  symbol,
+		Price:   NewOuroboros(closingPrices),
+		Low:     NewOuroboros(lowPrices),
+		High:    NewOuroboros(highPrices),
+		Atr:     atr,
+		Vol:     volume,
+		Updates: make(chan Stock, 100),
+	}
+}
+
+func NewStock(symbol string, bar []alpaca.Bar) Stock {
+	closingPrices := make([]float64, len(bar))
+	lowPrices := make([]float64, len(bar))
+	highPrices := make([]float64, len(bar))
+	volume := make([]float64, len(bar))
+	for i, b := range bar {
+		closingPrices[i] = float64(b.Close)
+		lowPrices[i] = float64(b.Low)
+		highPrices[i] = float64(b.High)
+		volume[i] = float64(b.Volume)
 	}
 
 	macd, signal, _ := talib.Macd(
@@ -38,7 +76,7 @@ func NewStock(symbol string, bar []alpaca.Bar) *Stock {
 		closingPrices,
 		viper.GetInt("atr"))
 
-	return &Stock{
+	return Stock{
 		Symbol:  symbol,
 		Price:   NewOuroboros(closingPrices),
 		Low:     NewOuroboros(lowPrices),
@@ -49,32 +87,9 @@ func NewStock(symbol string, bar []alpaca.Bar) *Stock {
 		Vel:     vel,
 		Acc:     acc,
 		Atr:     atr,
+		Vol:     volume,
 		Updates: make(chan Stock, 100),
 	}
-}
-
-// significant room for optimization here
-func (s *Stock) Update(close, low, high float64) {
-	s.Price = s.Price.Push(close)
-	s.Low = s.Low.Push(low)
-	s.High = s.High.Push(high)
-
-	prices := s.Price.Raster()
-	s.Macd, s.Signal, _ = talib.Macd(
-		prices,
-		viper.GetInt("macd.fast"),
-		viper.GetInt("macd.slow"),
-		viper.GetInt("macd.signal"))
-
-	s.Trend, s.Vel, s.Acc = getTrends(prices)
-
-	s.Atr = talib.Atr(
-		s.High.Raster(),
-		s.Low.Raster(),
-		prices,
-		viper.GetInt("atr"))
-
-	s.Updates <- *s
 }
 
 func getTrends(price []float64) ([]float64, []float64, []float64) {
@@ -209,35 +224,111 @@ func (s *Stock) IsDownwardsTrend() bool {
 }
 
 func (s Stock) LogSnapshot(action string, price, qty, takeProfit, stopLoss float64) {
-	priceRaster := s.Price.Raster()
+	s.CreateGraph()
 
 	log.Printf("%s %s:\n\t"+
-		"price %v\n\t"+
-		"trend %v\n\t"+
-		"macd %v\n\t"+
-		"signal %v\n\t"+
-		"vel %v\n\t"+
-		"acc %v\n\t"+
-		"atr %v\n\t"+
+		"total: %f\n\t"+
+		"qty: %f\n\t"+
 		"maxProfit: %f\n\t"+
 		"maxLoss: %v\n\t"+
 		"price: %f\n\t"+
 		"takeProfit: %f\n\t"+
-		"stopLoss: %f\n\t"+
-		"qty: %f",
+		"stopLoss: %f",
 		action,
 		s.Symbol,
-		priceRaster[len(priceRaster)-viper.GetInt("snapshot-lookback-min"):],
-		s.Trend[len(s.Trend)-viper.GetInt("snapshot-lookback-min"):],
-		s.Macd[len(s.Macd)-viper.GetInt("snapshot-lookback-min"):],
-		s.Signal[len(s.Signal)-viper.GetInt("snapshot-lookback-min"):],
-		s.Vel[len(s.Vel)-viper.GetInt("snapshot-lookback-min"):],
-		s.Acc[len(s.Acc)-viper.GetInt("snapshot-lookback-min"):],
-		s.Atr[len(s.Atr)-viper.GetInt("snapshot-lookback-min"):],
+		price*qty,
+		qty,
 		(takeProfit-price)*qty,
 		(price-stopLoss)*qty,
 		price,
 		takeProfit,
-		stopLoss,
-		qty)
+		stopLoss)
+}
+
+func (s *Stock) CreateGraph() {
+	lookback := viper.GetInt("snapshot-lookback-min")
+	scaleStart := float32(70)
+
+	// create a new line instance
+	prices := charts.NewLine()
+	macds := charts.NewLine()
+	trends := charts.NewLine()
+	atrs := charts.NewLine()
+
+	yAxisOpts := charts.WithYAxisOpts(opts.YAxis{
+		Scale: true,
+	})
+	toolTipOpts := charts.WithTooltipOpts(opts.Tooltip{
+		Show:      true,
+		TriggerOn: "mousemove|click",
+	})
+	zoomOpts := charts.WithDataZoomOpts(opts.DataZoom{
+		Start:      scaleStart,
+		End:        100,
+		XAxisIndex: []int{0},
+	})
+	initOpts := charts.WithInitializationOpts(opts.Initialization{
+		Width: "100%",
+	})
+
+	prices.SetGlobalOptions(charts.WithTitleOpts(opts.Title{
+		Title:    "Price and Trend",
+		Subtitle: "minutes",
+	}), yAxisOpts, toolTipOpts, zoomOpts, initOpts)
+
+	macds.SetGlobalOptions(charts.WithTitleOpts(opts.Title{
+		Title:    "MACD and Signal",
+		Subtitle: "minutes",
+	}), yAxisOpts, toolTipOpts, zoomOpts, initOpts)
+
+	trends.SetGlobalOptions(charts.WithTitleOpts(opts.Title{
+		Title:    "Trend Velocity and Acceleration",
+		Subtitle: "minutes",
+	}), yAxisOpts, toolTipOpts, zoomOpts, initOpts)
+
+	atrs.SetGlobalOptions(charts.WithTitleOpts(opts.Title{
+		Title:    "Average True Range",
+		Subtitle: "minutes",
+	}), yAxisOpts, toolTipOpts, zoomOpts, initOpts)
+
+	xAxis := make([]int, 0)
+
+	for i := lookback; i >= 0; i-- {
+		xAxis = append(xAxis, i)
+	}
+
+	prices.SetXAxis(xAxis)
+	macds.SetXAxis(xAxis)
+	trends.SetXAxis(xAxis)
+	atrs.SetXAxis(xAxis)
+
+	// Put data into instance
+	prices.AddSeries("Price", convertToItems(s.Price.Raster()[len(s.Price.Raster())-1-lookback:]))
+	prices.AddSeries("Trend", convertToItems(s.Trend[len(s.Trend)-1-lookback:]))
+
+	macds.AddSeries("Macd", convertToItems(s.Macd[len(s.Macd)-1-lookback:]))
+	macds.AddSeries("Signal", convertToItems(s.Signal[len(s.Signal)-1-lookback:]))
+
+	trends.AddSeries("Trend Velocity", convertToItems(s.Vel[len(s.Vel)-1-lookback:]))
+	trends.AddSeries("Trend Acceleration", convertToItems(s.Acc[len(s.Acc)-1-lookback:]))
+
+	atrs.AddSeries("ATR", convertToItems(s.Atr[len(s.Atr)-1-lookback:]))
+
+	page := components.NewPage()
+	page.AddCharts(prices, trends, macds, atrs)
+	page.AddCustomizedCSSAssets("graph.css")
+	page.PageTitle = s.Symbol
+
+	f, _ := os.Create(fmt.Sprintf("snapshots/%s-%s.html", time.Now().Format("2006-01-02T15-04-05"), s.Symbol))
+	page.SetLayout(components.PageFlexLayout)
+	_ = page.Render(f)
+}
+
+func convertToItems(array []float64) []opts.LineData {
+	items := make([]opts.LineData, len(array))
+	for i := range array {
+		items[i] = opts.LineData{Value: array[i]}
+	}
+
+	return items
 }

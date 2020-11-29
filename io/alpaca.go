@@ -23,8 +23,8 @@ func NewAlpaca() *Alpaca {
 		})}
 }
 
-func (a Alpaca) GetHistoricalStocks(symbols []string) map[string]*stock.Stock {
-	stocks := make(map[string]*stock.Stock)
+func (a Alpaca) GetStocks(symbols []string) []stock.Stock {
+	stocks := make([]stock.Stock, 0)
 
 	limit := viper.GetInt("trend") + viper.GetInt("snapshot-lookback-min") + 2
 	bars, err := a.Client.ListBars(symbols, alpaca.ListBarParams{
@@ -37,10 +37,33 @@ func (a Alpaca) GetHistoricalStocks(symbols []string) map[string]*stock.Stock {
 	}
 
 	for symbol, bar := range bars {
-		stocks[symbol] = stock.NewStock(symbol, bar)
+		if len(bar) < limit {
+			continue
+		}
+
+		stocks = append(stocks, stock.NewStock(symbol, bar))
 	}
 
 	return stocks
+}
+
+func (a Alpaca) GetStock(symbol string) stock.Stock {
+
+	limit := viper.GetInt("trend") + viper.GetInt("snapshot-lookback-min") + 2
+	bars, err := a.Client.ListBars([]string{symbol}, alpaca.ListBarParams{
+		Timeframe: "1Min",
+		Limit:     &limit,
+	})
+
+	if err != nil {
+		log.Panicf("could not gather historical prices due to %s", err)
+	}
+
+	if len(bars[symbol]) < limit {
+		log.Panicf("insufficient historical prices due to only having %s records", len(bars[symbol]))
+	}
+
+	return stock.NewStock(symbol, bars[symbol])
 }
 
 func (a Alpaca) GetMarketTime() (bool, time.Time, time.Time) {
@@ -94,10 +117,6 @@ func (a Alpaca) OrderBracket(symbol string, qty, takeProfit, stopLoss, stopLimit
 	}
 }
 
-func (a Alpaca) CountTradesAndOrders() int {
-	return len(a.ListPositions()) + len(a.ListOpenOrders())
-}
-
 func (a Alpaca) ListOpenOrders() []alpaca.Order {
 	open := "open"
 	roll := false
@@ -110,60 +129,37 @@ func (a Alpaca) ListOpenOrders() []alpaca.Order {
 	return orders
 }
 
-func (a Alpaca) GetPosition(symbol string) *alpaca.Position {
-	position, err := a.Client.GetPosition(symbol)
-	if err != nil {
-		log.Panicf("could not list positions in account due to %s", err)
-		// todo recover
-	}
-
-	return position
-}
-
-func (a Alpaca) GetOrders(symbol string) []alpaca.Order {
-	orders := make([]alpaca.Order, 0)
-	for _, order := range a.ListOpenOrders() {
-		if order.Symbol == symbol {
-			orders = append(orders, order)
-		}
-	}
-
-	return orders
-}
-
-func (a Alpaca) ListPositions() []alpaca.Position {
-	positions, err := a.Client.ListPositions()
-	if err != nil {
-		log.Panicf("could not list positions in account due to %s", err)
-		// todo recover
-	}
-
-	return positions
-}
-
-func (a Alpaca) GetPortfolioValue() float64 {
+func (a Alpaca) GetBuyingPower() float64 {
 	account, err := a.Client.GetAccount()
 	if err != nil {
 		log.Panicf("could not complete portfollio gather from alpaca_wrapper due to %s", err)
 	}
 
-	portfolio, _ := account.PortfolioValue.Float64()
+	buyingPower, _ := account.DaytradingBuyingPower.Float64()
 
-	return portfolio
+	return buyingPower
 }
 
 func (a Alpaca) LiquidatePosition(order alpaca.Order) {
 	err := a.Client.CancelOrder(order.ID)
 
 	if err != nil {
-		log.Printf("could not cancel old order for %s due to %s", order.Symbol, err)
-		return
+		log.Panicf("could not cancel old order for %s due to %s", order.Symbol, err)
 	}
 
 	err = a.Client.ClosePosition(order.Symbol)
 
 	if err != nil {
-		log.Printf("could not liqudate old position for %s due to %s", order.Symbol, err)
-		return
+		log.Panicf("could not liqudate old position for %s due to %s", order.Symbol, err)
 	}
+}
+
+func (a Alpaca) GetQuote(symbol string) *alpaca.LastQuoteResponse {
+	quote, err := a.Client.GetLastQuote(symbol)
+
+	if err != nil {
+		log.Panicf("could not get the last quote for %s due to %s", symbol, err)
+	}
+
+	return quote
 }

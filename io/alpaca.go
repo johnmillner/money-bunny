@@ -60,7 +60,7 @@ func (a Alpaca) GetStock(symbol string) stock.Stock {
 	}
 
 	if len(bars[symbol]) < limit {
-		log.Panicf("insufficient historical prices due to only having %s records", len(bars[symbol]))
+		log.Panicf("insufficient historical prices due to only having %d records", len(bars[symbol]))
 	}
 
 	return stock.NewStock(symbol, bars[symbol])

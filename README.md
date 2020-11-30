@@ -123,6 +123,6 @@ It is important to understand that there is significant risk in
 - relying heavily on technical indicators
 
 This program also uses margin by default - if unfamiliar with that risk - 
-or if not wanting that additional risk, please ensure to set "margin-multiplie" in the config to 1.00 or less 
+or if not wanting that additional risk, please ensure to set "margin-multiplier" in the config to 1.00 or less 
 
 As a general rule of thumb: do not trade with money you cannot lose.

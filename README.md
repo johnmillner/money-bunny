@@ -103,6 +103,7 @@ while the program is running, the console will log all trades, including symbol,
 	stopLoss:   63.272705
 ```
 inside of snapshots directory there will be html pages showing the graphs of the stock bought which it based its decision on
+
 they will be named with the time it was purchased and the stock given
 
 ![graphs html showing stock snapshot during buy](example/graphExample.png?raw=true "graphs html showing stock snapshot during buy")

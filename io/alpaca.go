@@ -135,8 +135,6 @@ func (a Alpaca) GetSpendableAmount() float64 {
 		log.Panicf("could not complete portfollio gather from alpaca_wrapper due to %s", err)
 	}
 
-	log.Printf("%+v", account)
-
 	// equity * multiplier = 100k
 	// buying power = 76k
 	// 100k-76k = amount spent = 24k

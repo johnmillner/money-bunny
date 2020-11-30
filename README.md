@@ -104,6 +104,7 @@ while the program is running, the console will log all trades, including symbol,
 ```
 inside of snapshots directory there will be html pages showing the graphs of the stock bought which it based its decision on
 they will be named with the time it was purchased and the stock given
+
 ![graphs html showing stock snapshot during buy](example/graphExample.png?raw=true "graphs html showing stock snapshot during buy")
 
 # Disclaimer
@@ -111,18 +112,23 @@ As with all things, both common sense and within the GPL-3.0 License agreed to o
 there is no guarantee, warranty, or liability agreed or expressed when using this program. 
 
 While this program is made in good faith to be profitable and bug-free - there is no promise of profits.
-There is however, risk. Risk of losing money. Risk of margin-call. 
+There is however, risk. Risk of losing money. Risk of margin-call. Risk of buggy software.
 
 This program is designed to day-trade any stock that meets certain mathematical technical indicators. 
-There is no advisory involved, and it views equities as a collection of numbers, 
+There is no advisory involved, and it views equities as a collection of potentially flawed numbers, 
 and its decisions as a series of potentially flawed equations. 
 It is important to understand that there is significant risk in 
 - market instability
 - day trading
 - use of margin
 - relying heavily on technical indicators
+- code flaws
+- data flaws
 
 This program also uses margin by default - if unfamiliar with that risk - 
 or if not wanting that additional risk, please ensure to set "margin-multiplier" in the config to 1.00 or less 
 
 As a general rule of thumb: do not trade with money you cannot lose.
+As a recomendation - read through this code yourself to understand what it does and how it works. 
+
+If you do see something that could be improved or safe-guarded against - please open up an incident or a PR and let's fix it! 

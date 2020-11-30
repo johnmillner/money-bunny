@@ -1,4 +1,4 @@
-module github.com/johnmillner/robo-macd
+module github.com/johnmillner/money-bunny
 
 go 1.14
 

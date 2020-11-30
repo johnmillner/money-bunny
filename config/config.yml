@@ -49,7 +49,7 @@ liquidate-after-min: 30
 
 # number of minutes to wait after market open before beginning to trade
 # scenario: there is often large market volatility and Unreliable data during market opens that shouldn't be traded on
-trade-after-open-min: 0
+trade-after-open-min: 10
 
 # number of minutes before the market closes to stop making trades, and liquidate active positions
 #   all positions should close before market close to avoid margin calls
@@ -69,8 +69,13 @@ chunk-size: 100
 sell-sla-sec: 5
 buy-sla-sec: 5
 
+min-market-cap: 300000000
+min-average-vol-multiple: 50
+
 # this is where you can set the KEY and SECRET for your Alpaca account
 #   these values can also be set by BUNNY_ALPACA.KEY and BUNNY_ALPACA.SECRET
 alpaca:
   key: ""
   secret: ""
+polygon:
+  key: ""

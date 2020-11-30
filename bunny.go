@@ -2,9 +2,9 @@ package main
 
 import (
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
-	"github.com/johnmillner/robo-macd/config"
-	"github.com/johnmillner/robo-macd/io"
-	"github.com/johnmillner/robo-macd/stock"
+	"github.com/johnmillner/money-bunny/config"
+	"github.com/johnmillner/money-bunny/io"
+	"github.com/johnmillner/money-bunny/stock"
 	"github.com/spf13/viper"
 	"log"
 	"math"
@@ -16,7 +16,7 @@ func main() {
 	log.Print("starting money bunny")
 
 	// read in configs
-	config.Config()
+	config.Config("config")
 
 	recovery(time.Now(), func() {
 		a := io.NewAlpaca()
@@ -37,8 +37,8 @@ func main() {
 		}
 
 		// wait for the next start of the minute
-		if time.Now().Second() != 0 {
-			startOfMinute := time.Now().Round(time.Minute)
+		if time.Now().Second() != 10 {
+			startOfMinute := time.Now().Round(time.Minute).Add(10 * time.Second)
 			if startOfMinute.Before(time.Now()) {
 				startOfMinute = startOfMinute.Add(time.Minute)
 			}
@@ -69,18 +69,27 @@ func buy(a *io.Alpaca) {
 	budget := calculateBudget(a, len(stocks))
 
 	for _, potential := range stocks {
-		if potential.IsReadyToBuy() {
-			price, qty, takeProfit, stopLoss, stopLimit := getOrderParameters(potential, a, budget)
-			// todo potentially further filter by market cap and volume
+		go func(potential stock.Stock) {
+			if potential.IsReadyToBuy() {
+				price, qty, takeProfit, stopLoss, stopLimit := getOrderParameters(potential, a, budget)
 
-			if qty < 1 {
-				go potential.LogSnapshot("skipping", price, qty, takeProfit, stopLoss)
-				continue
+				if qty < 1 {
+					go potential.LogSnapshot("skipping", price, 0, takeProfit, stopLoss)
+					return
+				}
+
+				if !io.FilterByMarketCap(potential) {
+					return
+				}
+
+				if !io.FilterByVolume(potential, qty) {
+					return
+				}
+
+				a.OrderBracket(potential.Symbol, qty, takeProfit, stopLoss, stopLimit)
+				go potential.LogSnapshot("buying", price, qty, takeProfit, stopLoss)
 			}
-
-			a.OrderBracket(potential.Symbol, qty, takeProfit, stopLoss, stopLimit)
-			go potential.LogSnapshot("buying", price, qty, takeProfit, stopLoss)
-		}
+		}(potential)
 	}
 
 	if time.Now().Sub(start).Seconds() > viper.GetFloat64("buy-sla-sec") {

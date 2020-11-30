@@ -7,10 +7,10 @@ import (
 	"strings"
 )
 
-func Config() {
+func Config(path string) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath("config")
+	viper.AddConfigPath(path)
 	viper.EnvKeyReplacer(strings.NewReplacer("_", "."))
 	viper.SetEnvPrefix("BUNNY")
 	viper.AutomaticEnv()

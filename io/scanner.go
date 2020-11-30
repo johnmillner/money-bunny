@@ -2,7 +2,7 @@ package io
 
 import (
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
-	"github.com/johnmillner/robo-macd/stock"
+	"github.com/johnmillner/money-bunny/stock"
 	"github.com/spf13/viper"
 	"log"
 	"sync"
@@ -104,4 +104,24 @@ func FilterByBuyable(stocks ...stock.Stock) []stock.Stock {
 
 	}
 	return buyableStocks
+}
+
+func FilterByMarketCap(stock stock.Stock) bool {
+
+	marketCap, err := GetMarketCap(stock.Symbol)
+	if err != nil {
+		log.Printf("%v", err)
+	}
+
+	return marketCap >= viper.GetFloat64("min-market-cap")
+}
+
+func FilterByVolume(stock stock.Stock, qty float64) bool {
+	totalVol := float64(0)
+	for _, vol := range stock.Vol {
+		totalVol += vol
+	}
+	avgVol := totalVol / float64(len(stock.Vol))
+
+	return avgVol*viper.GetFloat64("min-average-vol-multiple") > qty
 }

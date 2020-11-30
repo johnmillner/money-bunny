@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 	"github.com/alpacahq/alpaca-trade-api-go/common"
-	"github.com/johnmillner/robo-macd/stock"
+	"github.com/johnmillner/money-bunny/stock"
 	"github.com/shopspring/decimal"
 	"github.com/spf13/viper"
 	"log"
@@ -51,6 +51,10 @@ func (a Alpaca) GetStocks(symbols ...string) []stock.Stock {
 
 			for symbol, bar := range bars {
 				if len(bar) < limit {
+					continue
+				}
+
+				if time.Now().Sub(bar[len(bar)-1].GetTime()) > 2*time.Minute {
 					continue
 				}
 

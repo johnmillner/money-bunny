@@ -94,13 +94,13 @@ clone or download the package - and run `go run bunny.go`
 while the program is running, the console will log all trades, including symbol, price, take profit, stop loss, stop limit, and qty
 ```
 2020/11/29 02:34:08 buying NHC:
-	total: 22332.509254
-	qty: 349.000000
-	maxProfit: 375.502682
-	maxLoss: 250.33512142059453
-	price: 63.989998
+	total:      22332.509254
+	qty:        349.000000
+	maxProfit:  375.502682
+	maxLoss:    250.33512142059453
+	price:      63.989998
 	takeProfit: 65.065937
-	stopLoss: 63.272705
+	stopLoss:   63.272705
 ```
 inside of snapshots directory there will be html pages showing the graphs of the stock bought which it based its decision on
 they will be named with the time it was purchased and the stock given
@@ -123,6 +123,6 @@ It is important to understand that there is significant risk in
 - relying heavily on technical indicators
 
 This program also uses margin by default - if unfamiliar with that risk - 
-or if not wanting that additional risk, please ensure to set "buying-power" in the config to 0.25 or less 
+or if not wanting that additional risk, please ensure to set "margin-multiplie" in the config to 1.00 or less 
 
 As a general rule of thumb: do not trade with money you cannot lose.

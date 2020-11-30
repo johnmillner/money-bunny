@@ -8,6 +8,8 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/spf13/viper"
 	"log"
+	"strconv"
+	"sync"
 	"time"
 )
 
@@ -27,22 +29,39 @@ func (a Alpaca) GetStocks(symbols ...string) []stock.Stock {
 	stocks := make([]stock.Stock, 0)
 
 	limit := viper.GetInt("trend") + viper.GetInt("snapshot-lookback-min") + 2
-	bars, err := a.Client.ListBars(symbols, alpaca.ListBarParams{
-		Timeframe: "1Min",
-		Limit:     &limit,
-	})
+	chunks := splitList(symbols, viper.GetInt("chunk-size"))
 
-	if err != nil {
-		log.Panicf("could not gather historical prices due to %s", err)
+	m := sync.RWMutex{}
+	wg := sync.WaitGroup{}
+
+	for _, chunk := range chunks {
+		wg.Add(1)
+
+		go func(chunk []string) {
+			defer wg.Done()
+
+			bars, err := a.Client.ListBars(chunk, alpaca.ListBarParams{
+				Timeframe: "1Min",
+				Limit:     &limit,
+			})
+
+			if err != nil {
+				log.Panicf("could not gather historical prices due to %s", err)
+			}
+
+			for symbol, bar := range bars {
+				if len(bar) < limit {
+					continue
+				}
+
+				m.Lock()
+				stocks = append(stocks, stock.NewStock(symbol, bar))
+				m.Unlock()
+			}
+		}(chunk)
 	}
 
-	for symbol, bar := range bars {
-		if len(bar) < limit {
-			continue
-		}
-
-		stocks = append(stocks, stock.NewStock(symbol, bar))
-	}
+	wg.Wait()
 
 	return stocks
 }
@@ -110,15 +129,37 @@ func (a Alpaca) ListOpenOrders() []alpaca.Order {
 	return orders
 }
 
-func (a Alpaca) GetBuyingPower() float64 {
+func (a Alpaca) GetSpendableAmount() float64 {
 	account, err := a.Client.GetAccount()
 	if err != nil {
 		log.Panicf("could not complete portfollio gather from alpaca_wrapper due to %s", err)
 	}
 
-	buyingPower, _ := account.DaytradingBuyingPower.Float64()
+	log.Printf("%+v", account)
 
-	return buyingPower
+	// equity * multiplier = 100k
+	// buying power = 76k
+	// 100k-76k = amount spent = 24k
+	// if m=1
+	// (equity * m - amountSpent) = 25k * 1 - 24k = amount left to spend = 1k
+	// if m=2
+	// (equity * m - amountSpent) = 25k * 2 - 24k = amount left to spend = 26k
+	// if m=3
+	// (equity * m - amountSpent) = 25k * 3 - 24k = amount left to spend = 51k
+	// if m=4
+	// (equity * m - amountSpent) = 25k * 4 - 24k = amount left to spend = 76k
+
+	equity, _ := account.Equity.Float64()
+	buyingPower, _ := account.BuyingPower.Float64()
+	marginMultiplier := viper.GetFloat64("margin-multiplier")
+	multiplier, err := strconv.ParseFloat(account.Multiplier, 8)
+	if err != nil {
+		log.Panicf("could not parse the multiplier into a float due to %s", err)
+	}
+
+	idealMargin := equity * multiplier
+	spent := idealMargin - buyingPower
+	return equity*marginMultiplier - spent
 }
 
 func (a Alpaca) LiquidatePosition(order alpaca.Order) {

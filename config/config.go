@@ -1,6 +1,7 @@
 package config
 
 import (
+	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 	"log"
 	"strings"
@@ -14,6 +15,10 @@ func Config() {
 	viper.SetEnvPrefix("BUNNY")
 	viper.AutomaticEnv()
 	viper.WatchConfig()
+
+	viper.OnConfigChange(func(e fsnotify.Event) {
+		log.Printf("Config file updated: %s", e.Name)
+	})
 
 	err := viper.ReadInConfig()
 

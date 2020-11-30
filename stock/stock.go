@@ -227,13 +227,13 @@ func (s Stock) LogSnapshot(action string, price, qty, takeProfit, stopLoss float
 	s.CreateGraph()
 
 	log.Printf("%s %s:\n\t"+
-		"total: %f\n\t"+
-		"qty: %f\n\t"+
-		"maxProfit: %f\n\t"+
-		"maxLoss: %v\n\t"+
-		"price: %f\n\t"+
-		"takeProfit: %f\n\t"+
-		"stopLoss: %f",
+		"total:\t\t%f\n\t"+
+		"qty:\t\t%f\n\t"+
+		"maxProfit:\t%f\n\t"+
+		"maxLoss:\t%v\n\t"+
+		"price:\t\t%f\n\t"+
+		"takeProfit:\t%f\n\t"+
+		"stopLoss:\t%f",
 		action,
 		s.Symbol,
 		price*qty,

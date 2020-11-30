@@ -26,34 +26,38 @@ func FilterByTradability(a *Alpaca) []string {
 	return symbols
 }
 
-func splitList(symbols []string) [][]string {
+func splitList(symbols []string, chunkSize int) [][]string {
 	chunks := make([][]string, 0)
-	for i := 0; i < len(symbols); i += 200 {
-		chunks = append(chunks, symbols[i:i+200])
+
+	for i := 0; i < len(symbols); i += chunkSize {
+		stop := i + chunkSize
+		if len(symbols) < stop {
+			stop = len(symbols)
+		}
+		chunks = append(chunks, symbols[i:stop])
 	}
 
 	return chunks
 }
 
 func FilterByRisk(a *Alpaca, symbols []string) []string {
-	chunks := splitList(symbols)
+	chunks := splitList(symbols, viper.GetInt("chunk-size"))
 	period := viper.GetInt("atr") + 1
 
 	stocks := make([]string, 0)
 	m := sync.RWMutex{}
-
 	wg := sync.WaitGroup{}
+
 	for _, chunk := range chunks {
 		wg.Add(1)
 
 		go func(chunk []string) {
 			defer wg.Done()
+
 			chunkBars, err := a.Client.ListBars(chunk, alpaca.ListBarParams{
 				Timeframe: "1Min",
 				Limit:     &period,
 			})
-
-			log.Printf("gathering page")
 
 			if err != nil {
 				log.Panicf("could not gather atrs due to %s", err)

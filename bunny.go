@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 	"github.com/johnmillner/robo-macd/config"
 	"github.com/johnmillner/robo-macd/io"
 	"github.com/johnmillner/robo-macd/stock"
@@ -30,12 +31,24 @@ func main() {
 		in := opens.Add(time.Duration(viper.GetInt("trade-after-open-min")) * time.Minute)
 		out := closes.Add(-1 * time.Duration(viper.GetInt("close-before-close-min")) * time.Minute)
 
-		if in.Before(time.Now()) {
+		if time.Now().Before(in) {
 			log.Printf("market has not opened for today yet, waiting until %s", in.String())
 			time.Sleep(in.Sub(time.Now()))
 		}
 
+		// wait for the next start of the minute
+		if time.Now().Second() != 0 {
+			startOfMinute := time.Now().Round(time.Minute)
+			if startOfMinute.Before(time.Now()) {
+				startOfMinute = startOfMinute.Add(time.Minute)
+			}
+
+			log.Printf("sleeping until %s", startOfMinute.String())
+			time.Sleep(startOfMinute.Sub(time.Now()))
+		}
+
 		for ; out.After(time.Now()); time.Sleep(time.Minute) {
+			log.Printf("starting buy sell routine")
 			go sell(a, out)
 			go buy(a)
 		}
@@ -70,15 +83,23 @@ func buy(a *io.Alpaca) {
 		}
 	}
 
-	log.Printf("total cycle for buying took %s", time.Now().Sub(start).String())
+	if time.Now().Sub(start).Seconds() > viper.GetFloat64("buy-sla-sec") {
+		log.Printf("total cycle for buying took longer than sla of %f at %s", viper.GetFloat64("buy-sla-sec"), time.Now().Sub(start).String())
+	}
 }
 
 func calculateBudget(a *io.Alpaca, eligibleStocks int) float64 {
-	return a.GetBuyingPower() * viper.GetFloat64("buying-power") / float64(eligibleStocks)
+	return a.GetSpendableAmount() / float64(eligibleStocks)
 }
 
 func sell(a *io.Alpaca, out time.Time) {
-	for _, order := range a.ListOpenOrders() {
+	start := time.Now()
+
+	openOrders := a.ListOpenOrders()
+	symbols := make([]string, 0)
+	symbolOrder := make(map[string]alpaca.Order)
+
+	for _, order := range openOrders {
 		// sell all orders if close to marketClose
 		if out.Before(time.Now()) {
 			log.Printf("liqudating %s since it's close to market close %v current time %v",
@@ -90,8 +111,7 @@ func sell(a *io.Alpaca, out time.Time) {
 		}
 
 		// remove old order/positions
-		if order.SubmittedAt.Add(time.Duration(viper.GetInt("liquidate-after-min")) * time.Minute).
-			Before(time.Now()) {
+		if order.SubmittedAt.Add(time.Duration(viper.GetInt("liquidate-after-min")) * time.Minute).Before(time.Now()) {
 			log.Printf("liqudating %s since it was too old submitted at %v current time %v",
 				order.Symbol,
 				order.SubmittedAt,
@@ -100,12 +120,20 @@ func sell(a *io.Alpaca, out time.Time) {
 			continue
 		}
 
-		// check if this order should be sold
-		if update := a.GetStocks(order.Symbol)[0]; update.IsReadyToSell() {
-			qty, _ := order.Qty.Float64()
+		symbolOrder[order.Symbol] = order
+		symbols = append(symbols, order.Symbol)
+	}
+
+	for _, update := range a.GetStocks(symbols...) {
+		if update.IsReadyToSell() {
+			qty, _ := symbolOrder[update.Symbol].Qty.Float64()
 			go update.LogSnapshot("selling", update.Price.Peek(), qty, 0, 0)
-			a.LiquidatePosition(order)
+			a.LiquidatePosition(symbolOrder[update.Symbol])
 		}
+	}
+
+	if time.Now().Sub(start).Seconds() > viper.GetFloat64("sell-sla-sec") {
+		log.Printf("total cycle for selling took longer than sla of %f at %s", viper.GetFloat64("buy-sla-sec"), time.Now().Sub(start).String())
 	}
 }
 

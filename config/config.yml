@@ -15,11 +15,12 @@ stop-loss-atr-ratio: 2
 #   in the event the stock is falling so fast and it goes below 8.5$ - it will not sell and instead wait for it come back up
 stop-loss-max: 0.5
 
-# the amount of the total account (including margin) to be played with - default 75% (0.75) - max 1.00
-# scenario: buying power is gathered from alpaca directly, and it will include a 4x margin
-#   by selecting .75, you are using 3x margin - and keeping the other 1x as buffer during fluctuations
-#   if not wanting to use margin at all, please set the value to 0.25 or less
-buying-power: 0.75
+# the multiplier of the total equity (including margin) to be played with - default 3.00 - max 4.00
+# scenario: the amount of money to be played with is determined by the
+#   account size, amount spent, margin available, and this multiple
+#   by selecting 3.00, you are using 3x margin - and keeping the other 1x as buffer during fluctuations
+#   if not wanting to use margin at all, please set the value to 1.00 or less
+margin-multiplier: 3.00
 
 # when scanning for stocks to choose from, we want to target stocks with enough risk/reward to be worth trading
 #   the amount of exposure is calculated from the #risk field and the stocks latest ATR value
@@ -60,6 +61,13 @@ snapshot-lookback-min: 120
 # if there is an issue with the trading app - it will auto-recovery -
 #   however if it recovers within this many minutes - it will assume there is a larger issue and stop the program
 recover-frequency-min: 5
+
+# the amount of stocks to chunk into parallel requests - default 100, max 200
+chunk-size: 100
+
+# will warn in console if the routine took longer than configured seconds to complete
+sell-sla-sec: 5
+buy-sla-sec: 5
 
 # this is where you can set the KEY and SECRET for your Alpaca account
 #   these values can also be set by BUNNY_ALPACA.KEY and BUNNY_ALPACA.SECRET

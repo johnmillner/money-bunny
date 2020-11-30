@@ -55,10 +55,10 @@ trade-after-open-min: 0
 #   all positions should close before market close to avoid margin calls
 close-before-close-min: 2
 
-# the graphs in /snapshots will look back this many periods when generating the raphs
+# the graphs in /snapshots will look back this many periods when generating the graphs
 snapshot-lookback-min: 120
 
-# if there is an issue with the trading app - it will auto-recovery -
+# if there is an issue with the trading app - it will auto-recover
 #   however if it recovers within this many minutes - it will assume there is a larger issue and stop the program
 recover-frequency-min: 5
 

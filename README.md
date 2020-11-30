@@ -4,8 +4,9 @@
 # Code/Testing In Progress - Don't trust your money with this yet :) 
 
 # Money Bunny
-This is a day trading stock scanner and robo-trader that searches all US stocks and attempts to find stocks with a 
-good risk-reward ratio and that are at the start of an upward trend. 
+This is a day trading stock scanner and robo-trader that searches all US stocks and attempts to find and buy stocks with a 
+good risk-reward ratio and that are at the start of an upward trend, and then sell them as a downtrend 
+begins, or it meets its profit target, stoploss or timeout.
 
 # Configuration
 in the config.yml add your alpaca key, secret

@@ -1,4 +1,4 @@
-package stock
+package internal
 
 import (
 	"fmt"
@@ -14,47 +14,17 @@ import (
 )
 
 type Stock struct {
-	Symbol                                  string
-	Price, High, Low                        Ouroboros
-	Macd, Signal, Trend, Vel, Acc, Atr, Vol []float64
-	Updates                                 chan Stock
+	Symbol                             string
+	Price, High, Low, Vol              Ouroboros
+	Macd, Signal, Trend, Vel, Acc, Atr []float64
 }
 
-func NewStockAtr(symbol string, bar []alpaca.Bar) *Stock {
+func NewStock(symbol string, bar []alpaca.Bar) *Stock {
 	closingPrices := make([]float64, len(bar))
 	lowPrices := make([]float64, len(bar))
 	highPrices := make([]float64, len(bar))
 	volume := make([]float64, len(bar))
 
-	for i, b := range bar {
-		closingPrices[i] = float64(b.Close)
-		lowPrices[i] = float64(b.Low)
-		highPrices[i] = float64(b.High)
-		volume[i] = float64(b.Volume)
-	}
-
-	atr := talib.Atr(
-		highPrices,
-		lowPrices,
-		closingPrices,
-		viper.GetInt("atr"))
-
-	return &Stock{
-		Symbol:  symbol,
-		Price:   NewOuroboros(closingPrices),
-		Low:     NewOuroboros(lowPrices),
-		High:    NewOuroboros(highPrices),
-		Atr:     atr,
-		Vol:     volume,
-		Updates: make(chan Stock, 100),
-	}
-}
-
-func NewStock(symbol string, bar []alpaca.Bar) Stock {
-	closingPrices := make([]float64, len(bar))
-	lowPrices := make([]float64, len(bar))
-	highPrices := make([]float64, len(bar))
-	volume := make([]float64, len(bar))
 	for i, b := range bar {
 		closingPrices[i] = float64(b.Close)
 		lowPrices[i] = float64(b.Low)
@@ -76,20 +46,44 @@ func NewStock(symbol string, bar []alpaca.Bar) Stock {
 		closingPrices,
 		viper.GetInt("atr"))
 
-	return Stock{
-		Symbol:  symbol,
-		Price:   NewOuroboros(closingPrices),
-		Low:     NewOuroboros(lowPrices),
-		High:    NewOuroboros(highPrices),
-		Macd:    macd,
-		Signal:  signal,
-		Trend:   trend,
-		Vel:     vel,
-		Acc:     acc,
-		Atr:     atr,
-		Vol:     volume,
-		Updates: make(chan Stock, 100),
+	return &Stock{
+		Symbol: symbol,
+		Price:  NewOuroboros(closingPrices),
+		Low:    NewOuroboros(lowPrices),
+		High:   NewOuroboros(highPrices),
+		Vol:    NewOuroboros(volume),
+		Macd:   macd,
+		Signal: signal,
+		Trend:  trend,
+		Vel:    vel,
+		Acc:    acc,
+		Atr:    atr,
 	}
+}
+
+func (s *Stock) Update(aggregate Aggregate) *Stock {
+	s.Price.Push(aggregate.C)
+	s.Low.Push(aggregate.L)
+	s.High.Push(aggregate.H)
+	s.Vol.Push(aggregate.V)
+
+	prices := s.Price.Raster()
+
+	s.Macd, s.Signal, _ = talib.Macd(
+		prices,
+		viper.GetInt("macd.fast"),
+		viper.GetInt("macd.slow"),
+		viper.GetInt("macd.signal"))
+
+	s.Trend, s.Vel, s.Acc = getTrends(prices)
+
+	s.Atr = talib.Atr(
+		s.High.Raster(),
+		s.Low.Raster(),
+		prices,
+		viper.GetInt("atr"))
+
+	return s
 }
 
 func getTrends(price []float64) ([]float64, []float64, []float64) {

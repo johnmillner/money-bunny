@@ -1,4 +1,4 @@
-package io
+package internal
 
 import (
 	"github.com/johnmillner/money-bunny/config"

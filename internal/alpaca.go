@@ -1,10 +1,9 @@
-package io
+package internal
 
 import (
 	"fmt"
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 	"github.com/alpacahq/alpaca-trade-api-go/common"
-	"github.com/johnmillner/money-bunny/stock"
 	"github.com/shopspring/decimal"
 	"github.com/spf13/viper"
 	"log"
@@ -25,11 +24,11 @@ func NewAlpaca() *Alpaca {
 		})}
 }
 
-func (a Alpaca) GetStocks(symbols ...string) []stock.Stock {
-	stocks := make([]stock.Stock, 0)
+func (a Alpaca) GetStocks(symbols ...string) []*Stock {
+	stocks := make([]*Stock, 0)
 
 	limit := viper.GetInt("trend") + viper.GetInt("snapshot-lookback-min") + 2
-	chunks := splitList(symbols, viper.GetInt("chunk-size"))
+	chunks := SplitList(symbols, viper.GetInt("chunk-size"))
 
 	m := sync.RWMutex{}
 	wg := sync.WaitGroup{}
@@ -59,7 +58,7 @@ func (a Alpaca) GetStocks(symbols ...string) []stock.Stock {
 				}
 
 				m.Lock()
-				stocks = append(stocks, stock.NewStock(symbol, bar))
+				stocks = append(stocks, NewStock(symbol, bar))
 				m.Unlock()
 			}
 		}(chunk)
@@ -68,6 +67,20 @@ func (a Alpaca) GetStocks(symbols ...string) []stock.Stock {
 	wg.Wait()
 
 	return stocks
+}
+
+func SplitList(symbols []string, chunkSize int) [][]string {
+	chunks := make([][]string, 0)
+
+	for i := 0; i < len(symbols); i += chunkSize {
+		stop := i + chunkSize
+		if len(symbols) < stop {
+			stop = len(symbols)
+		}
+		chunks = append(chunks, symbols[i:stop])
+	}
+
+	return chunks
 }
 
 func (a Alpaca) GetMarketTime() (bool, time.Time, time.Time) {
@@ -134,10 +147,7 @@ func (a Alpaca) ListOpenOrders() []alpaca.Order {
 }
 
 func (a Alpaca) GetSpendableAmount() float64 {
-	account, err := a.Client.GetAccount()
-	if err != nil {
-		log.Panicf("could not complete portfollio gather from alpaca_wrapper due to %s", err)
-	}
+	account := a.GetAccount()
 
 	// equity * multiplier = 100k
 	// buying power = 76k
@@ -186,4 +196,24 @@ func (a Alpaca) GetQuote(symbol string) *alpaca.LastQuoteResponse {
 	}
 
 	return quote
+}
+
+func (a *Alpaca) ListPositions() []alpaca.Position {
+	quote, err := a.Client.ListPositions()
+
+	if err != nil {
+		log.Panicf("could not get the current positions due to %s", err)
+	}
+
+	return quote
+}
+
+func (a *Alpaca) GetAccount() alpaca.Account {
+	account, err := a.Client.GetAccount()
+
+	if err != nil {
+		log.Panicf("could not complete portfollio gather from alpaca_wrapper due to %s", err)
+	}
+
+	return *account
 }

@@ -1,4 +1,4 @@
-package stock
+package internal
 
 // Ouroboros contains a ring buffer style stack that can have a Rasterized array of the current state printed out
 type Ouroboros struct {

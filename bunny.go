@@ -1,13 +1,10 @@
 package main
 
 import (
-	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 	"github.com/johnmillner/money-bunny/config"
-	"github.com/johnmillner/money-bunny/io"
-	"github.com/johnmillner/money-bunny/stock"
+	"github.com/johnmillner/money-bunny/internal"
 	"github.com/spf13/viper"
 	"log"
-	"math"
 	"runtime/debug"
 	"time"
 )
@@ -19,7 +16,8 @@ func main() {
 	config.Config("config")
 
 	recovery(time.Now(), func() {
-		a := io.NewAlpaca()
+		a := internal.NewAlpaca()
+		p := internal.InitPolygon()
 
 		today, opens, closes := a.GetMarketTime()
 
@@ -36,137 +34,21 @@ func main() {
 			time.Sleep(in.Sub(time.Now()))
 		}
 
-		// wait for the next start of the minute
-		if time.Now().Second() != 10 {
-			startOfMinute := time.Now().Round(time.Minute).Add(10 * time.Second)
-			if startOfMinute.Before(time.Now()) {
-				startOfMinute = startOfMinute.Add(time.Minute)
-			}
+		overseer := internal.InitOverseer(a, p, out)
+		// find list of all US, marginable, easy-to-trade stocks
+		symbols := internal.FilterByTradability(a)
+		// further filter by ensure at least small-cap and above
+		symbols = internal.FilterByCap(symbols...)
+		log.Printf("%d", len(symbols))
 
-			log.Printf("sleeping until %s", startOfMinute.String())
-			time.Sleep(startOfMinute.Sub(time.Now()))
+		stocks := a.GetStocks(symbols...)
+		for _, stock := range stocks {
+			go overseer.Manage(stock)
 		}
 
-		for ; out.After(time.Now()); time.Sleep(time.Minute) {
-			log.Printf("starting buy sell routine")
-			go sell(a, out)
-			go buy(a)
-		}
-
+		time.Sleep(out.Add(time.Minute).Sub(time.Now()))
 		log.Printf("market has closed for today, exiting for the day")
 	})
-}
-
-func buy(a *io.Alpaca) {
-	start := time.Now()
-
-	symbols := io.FilterByTradability(a)
-	symbols = io.FilterByRisk(a, symbols)
-
-	stocks := a.GetStocks(symbols...)
-	stocks = io.FilterByBuyable(stocks...)
-
-	budget := calculateBudget(a, len(stocks))
-
-	for _, potential := range stocks {
-		go func(potential stock.Stock) {
-			if potential.IsReadyToBuy() {
-				price, qty, takeProfit, stopLoss, stopLimit := getOrderParameters(potential, a, budget)
-
-				if qty < 1 {
-					go potential.LogSnapshot("skipping", price, 0, takeProfit, stopLoss)
-					return
-				}
-
-				if !io.FilterByMarketCap(potential) {
-					return
-				}
-
-				if !io.FilterByVolume(potential, qty) {
-					return
-				}
-
-				a.OrderBracket(potential.Symbol, qty, takeProfit, stopLoss, stopLimit)
-				go potential.LogSnapshot("buying", price, qty, takeProfit, stopLoss)
-			}
-		}(potential)
-	}
-
-	if time.Now().Sub(start).Seconds() > viper.GetFloat64("buy-sla-sec") {
-		log.Printf("total cycle for buying took longer than sla of %f at %s", viper.GetFloat64("buy-sla-sec"), time.Now().Sub(start).String())
-	}
-}
-
-func calculateBudget(a *io.Alpaca, eligibleStocks int) float64 {
-	return a.GetSpendableAmount() / float64(eligibleStocks)
-}
-
-func sell(a *io.Alpaca, out time.Time) {
-	start := time.Now()
-
-	openOrders := a.ListOpenOrders()
-	symbols := make([]string, 0)
-	symbolOrder := make(map[string]alpaca.Order)
-
-	for _, order := range openOrders {
-		// sell all orders if close to marketClose
-		if out.Before(time.Now()) {
-			log.Printf("liqudating %s since it's close to market close %v current time %v",
-				order.Symbol,
-				out,
-				time.Now().UTC())
-			a.LiquidatePosition(order)
-			continue
-		}
-
-		// remove old order/positions
-		if order.SubmittedAt.Add(time.Duration(viper.GetInt("liquidate-after-min")) * time.Minute).Before(time.Now()) {
-			log.Printf("liqudating %s since it was too old submitted at %v current time %v",
-				order.Symbol,
-				order.SubmittedAt,
-				time.Now().UTC())
-			a.LiquidatePosition(order)
-			continue
-		}
-
-		symbolOrder[order.Symbol] = order
-		symbols = append(symbols, order.Symbol)
-	}
-
-	for _, update := range a.GetStocks(symbols...) {
-		if update.IsReadyToSell() {
-			qty, _ := symbolOrder[update.Symbol].Qty.Float64()
-			go update.LogSnapshot("selling", update.Price.Peek(), qty, 0, 0)
-			a.LiquidatePosition(symbolOrder[update.Symbol])
-		}
-	}
-
-	if time.Now().Sub(start).Seconds() > viper.GetFloat64("sell-sla-sec") {
-		log.Printf("total cycle for selling took longer than sla of %f at %s", viper.GetFloat64("buy-sla-sec"), time.Now().Sub(start).String())
-	}
-}
-
-func getOrderParameters(s stock.Stock, a *io.Alpaca, budget float64) (float64, float64, float64, float64, float64) {
-	quote := a.GetQuote(s.Symbol)
-	exposure := budget * viper.GetFloat64("risk")
-	price := float64(quote.Last.AskPrice - (quote.Last.AskPrice-quote.Last.BidPrice)/2)
-
-	tradeRisk := viper.GetFloat64("stop-loss-atr-ratio") * s.Atr[len(s.Atr)-1]
-	rewardToRisk := viper.GetFloat64("risk-reward")
-	stopLossMax := viper.GetFloat64("stop-loss-max")
-
-	takeProfit := price + (rewardToRisk * tradeRisk)
-	stopLoss := price - tradeRisk
-	stopLimit := price - (1+stopLossMax)*tradeRisk
-
-	qty := math.Round(exposure / tradeRisk)
-
-	//ensure we dont go over
-	for qty*price > budget {
-		qty = qty - 1
-	}
-
-	return price, qty, takeProfit, stopLoss, stopLimit
 }
 
 func recovery(start time.Time, f func()) {

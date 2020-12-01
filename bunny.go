@@ -39,7 +39,6 @@ func main() {
 		symbols := internal.FilterByTradability(a)
 		// further filter by ensure at least small-cap and above
 		symbols = internal.FilterByCap(symbols...)
-		log.Printf("%d", len(symbols))
 
 		stocks := a.GetStocks(symbols...)
 		for _, stock := range stocks {

@@ -12,7 +12,7 @@ stop-loss-atr-ratio: 2
 # when setting the stop loss, a minimum floor should be set if the stock is fast falling - defaults  50% (0.5)
 # scenario: planning on buying a stock at 10$/share, stopLoss begins when price hits 9$,
 #   stopLossMax at 50% means it will accept sells down to 8.5$
-#   in the event the stock is falling so fast and it goes below 8.5$ - it will not sell and instead wait for it come back up
+#   in the event the stock is falling so fast and it goes below 8.5$ - it will not sell and  wait for it come back up
 stop-loss-max: 0.5
 
 # the multiplier of the total equity (including margin) to be played with - default 3.00 - max 4.00
@@ -25,11 +25,23 @@ margin-multiplier: 3.00
 # when scanning for stocks to choose from, we want to target stocks with enough risk/reward to be worth trading
 #   the amount of exposure is calculated from the #risk field and the stocks latest ATR value
 #   this tolerance is how much it can fluctuate from an ideally risky stock - defaults to 10% (0.1)
-# scenario: a stock is estimated to have an max risk and reward of 10$ and 15$ respectively, but we'd need to spend 15k$
+# scenario: a stock is estimated to have an max risk, reward of 10$ and 15$ respectively, but we'd need to spend 15k$
 #   that is not worth the risk, and it would be better to focus on a more risky stock
 #   on the flipside, there is an extremely volatile stock that we may need to avoid because we might not be able to get
 #   into and out of the stock in good time
-exposure-tolerance: 0.10
+exposure-tolerance: 0.20
+
+# the maximum number of positions allowed to have at any given time - defaults 10
+#   this has the effect of taking the equity*marginMultiple/max-positions == budget for any trade
+max-positions: 10
+
+# the minimum market capitalization an equity must have to be considered by this app - defaults to 3B (3000000000)
+min-market-cap: 300000000
+
+# the minimum volume multiple of stocks that need to be averaging if this buy is allowed to happen
+# scenario: want to buy 1000 stocks of XYZ but its average volume is 100 - this would quickly suck up all supply
+#   this program best functions when it is not making the market and instead riding the waves
+min-average-vol-multiple: 50
 
 # MACD is used to determine buying/selling indicators - default periods are 12, 26, 9
 macd:
@@ -65,17 +77,16 @@ recover-frequency-min: 5
 # the amount of stocks to chunk into parallel requests - default 100, max 200
 chunk-size: 100
 
-# will warn in console if the routine took longer than configured seconds to complete
-sell-sla-sec: 5
-buy-sla-sec: 5
-
-min-market-cap: 300000000
-min-average-vol-multiple: 50
-
 # this is where you can set the KEY and SECRET for your Alpaca account
 #   these values can also be set by BUNNY_ALPACA.KEY and BUNNY_ALPACA.SECRET
 alpaca:
   key: ""
   secret: ""
+
+# this is where you can set the KEY for your Polygon account - this can also be your live Alpaca Key
+#   these values can also be set by BUNNY_POLYGON.KEY
 polygon:
   key: ""
+
+# sets logging level - can be set to trace, debug, info, warn, or error - default info
+log-level: "info"

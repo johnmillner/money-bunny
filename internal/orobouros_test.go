@@ -1,4 +1,4 @@
-package stock
+package internal
 
 import (
 	"github.com/magiconair/properties/assert"

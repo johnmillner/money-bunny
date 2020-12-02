@@ -2,21 +2,22 @@ package internal
 
 import (
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
+	"github.com/johnmillner/money-bunny/io"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
-	"log"
 	"math"
 	"time"
 )
 
 type Overseer struct {
-	a         *Alpaca
-	p         *Polygon
+	a         *io.Alpaca
+	p         *io.Polygon
 	Positions []alpaca.Position
 	Orders    []alpaca.Order
 	Account   alpaca.Account
 }
 
-func InitOverseer(a *Alpaca, p *Polygon, out time.Time) *Overseer {
+func InitOverseer(a *io.Alpaca, p *io.Polygon, out time.Time) *Overseer {
 	o := &Overseer{
 		a: a,
 		p: p,
@@ -29,10 +30,19 @@ func InitOverseer(a *Alpaca, p *Polygon, out time.Time) *Overseer {
 				o.Orders = o.a.ListOpenOrders()
 				o.Account = o.a.GetAccount()
 
+				logrus.
+					WithField("account", o.Account).
+					WithField("positions", o.Positions).
+					WithField("orders", o.Orders).
+					Debug("current status")
+
 				// check old orders
 				for _, order := range o.Orders {
 					if order.SubmittedAt.Add(time.Duration(viper.GetInt("liquidate-after-min")) * time.Minute).Before(time.Now()) {
-						log.Printf("liqudating %s since it was too old submitted at %v", order.Symbol, order.SubmittedAt)
+						logrus.
+							WithField("stock", order.Symbol).
+							WithField("submitted", order.SubmittedAt).
+							Info("liquidating since it was too old submitted")
 						o.liquidate(order.Symbol)
 					}
 				}
@@ -42,7 +52,9 @@ func InitOverseer(a *Alpaca, p *Polygon, out time.Time) *Overseer {
 		// liquidate if near to close
 		if time.Now().After(out) {
 			for _, position := range o.Positions {
-				log.Printf("liqudating %s since it's close to market close %v", position.Symbol, out)
+				logrus.
+					WithField("stock", position.Symbol).
+					Info("liquidating since it's close to market close %v", out)
 				o.liquidate(position.Symbol)
 			}
 		}
@@ -57,7 +69,10 @@ func (o *Overseer) liquidate(symbol string) {
 			err := o.a.Client.CancelOrder(order.ID)
 
 			if err != nil {
-				log.Panicf("could not cancel old order for %s due to %s", symbol, err)
+				logrus.
+					WithField("stock", symbol).
+					WithError(err).
+					Panic("could not cancel old order")
 			}
 		}
 	}
@@ -67,7 +82,10 @@ func (o *Overseer) liquidate(symbol string) {
 			err := o.a.Client.ClosePosition(symbol)
 
 			if err != nil {
-				log.Printf("could not liqudate old position for %s due to %s", symbol, err)
+				logrus.
+					WithField("stock", symbol).
+					WithError(err).
+					Error("could not liquidate old position for")
 			}
 		}
 	}
@@ -77,7 +95,7 @@ func (o *Overseer) Manage(stock *Stock) {
 	aggregates := o.p.SubscribeTicker(stock.Symbol)
 
 	for aggregate := range aggregates {
-		stock.Update(aggregate)
+		stock = stock.Update(aggregate)
 
 		//check if already own internal
 		holding := false
@@ -89,7 +107,7 @@ func (o *Overseer) Manage(stock *Stock) {
 			}
 		}
 
-		if holding && stock.IsReadyToSell() {
+		if holding && FilterByMacdExit(stock) {
 			o.liquidate(stock.Symbol)
 
 			price, _ := hPosition.CurrentPrice.Float64()
@@ -99,12 +117,28 @@ func (o *Overseer) Manage(stock *Stock) {
 			holding = false
 		}
 
-		if !holding && stock.IsReadyToBuy() {
+		if !holding && FilterByMacdEntry(stock) {
 			price, qty, takeProfit, stopLoss, stopLimit := o.getOrderParameters(stock)
 
 			// check that quantity is above zero, there is sufficient volume for the trade, and the risk/reward is favorable
-			if qty < 1 || !FilterByVolume(stock, qty) || !FilterByRiskGoal(stock) {
-				return
+			if qty < 1 {
+				logrus.
+					WithField("stock", stock.Symbol).
+					Debug("skipping due since insufficient capital")
+				continue
+			}
+			if !FilterByVolume(stock, qty) {
+				logrus.
+					WithField("stock", stock.Symbol).
+					Debug("skipping due since insufficient volume")
+				continue
+			}
+			// if maxLoss is less than budget*risk*percentage
+			if ok, minRisk, risk := FilterByRiskGoal(o.calculateBudget(), price, stopLoss, qty); !ok {
+				logrus.
+					WithField("stock", stock.Symbol).
+					Debugf("risk not good enough, wanted minimum risk of %f but only has %f", o.calculateBudget(), minRisk, risk)
+				continue
 			}
 
 			o.a.OrderBracket(stock.Symbol, qty, takeProfit, stopLoss, stopLimit)

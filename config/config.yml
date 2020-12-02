@@ -29,7 +29,7 @@ margin-multiplier: 3.00
 #   that is not worth the risk, and it would be better to focus on a more risky stock
 #   on the flipside, there is an extremely volatile stock that we may need to avoid because we might not be able to get
 #   into and out of the stock in good time
-exposure-tolerance: 0.10
+exposure-tolerance: 0.20
 
 # the maximum number of positions allowed to have at any given time - defaults 10
 #   this has the effect of taking the equity*marginMultiple/max-positions == budget for any trade
@@ -82,5 +82,11 @@ chunk-size: 100
 alpaca:
   key: ""
   secret: ""
+
+# this is where you can set the KEY for your Polygon account - this can also be your live Alpaca Key
+#   these values can also be set by BUNNY_POLYGON.KEY
 polygon:
   key: ""
+
+# sets logging level - can be set to trace, debug, info, warn, or error - default info
+log-level: "info"

@@ -1,12 +1,12 @@
-package internal
+package io
 
 import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -51,7 +51,9 @@ func InitPolygon() *Polygon {
 	c, _, err := websocket.DefaultDialer.Dial("wss://socket.polygon.io/stocks", nil)
 
 	if err != nil {
-		log.Panicf("could not connect to polygon %v", err)
+		logrus.
+			WithError(err).
+			Panic("could not connect to polygon")
 	}
 
 	p := &Polygon{
@@ -76,7 +78,9 @@ func InitPolygon() *Polygon {
 			err = c.WriteMessage(websocket.TextMessage, b)
 
 			if err != nil {
-				log.Panicf("could not send message %s to polygon %s", string(b), err)
+				logrus.
+					WithError(err).
+					Panicf("could not send message %s to polygon", string(b))
 			}
 		}
 	}()
@@ -87,7 +91,9 @@ func InitPolygon() *Polygon {
 			_, b, err := c.ReadMessage()
 
 			if err != nil {
-				log.Panicf("could not receive message from polygon %s", err)
+				logrus.
+					WithError(err).
+					Panic("could not receive message from polygon")
 			}
 
 			p.inbox <- b
@@ -101,22 +107,31 @@ func InitPolygon() *Polygon {
 				var s []Status
 				err = json.Unmarshal(b, &s)
 				if err != nil {
-					log.Printf("could not unmarshal the status %s due to %s", string(b), err)
+					logrus.
+						WithError(err).
+						Errorf("could not unmarshal the status %s", string(b))
+					continue
 				}
 
 				p.Statuses <- s[0]
 			} else if strings.Contains(string(b), "\"ev\":\"AM\"") {
-				var a Aggregate
+				var a []Aggregate
 				err = json.Unmarshal(b, &a)
 				if err != nil {
-					log.Printf("could not unmarshal the aggregate %s due to %s", string(b), err)
+					logrus.
+						WithError(err).
+						Errorf("could not unmarshal the aggregate %s", string(b))
+					continue
 				}
 
 				p.lock.RLock()
-				if channel, ok := p.subscribeMap[a.Sym]; ok {
-					channel <- a
+				if channel, ok := p.subscribeMap[a[0].Sym]; ok {
+					channel <- a[0]
 				} else {
-					log.Printf("could not feather aggregate for %s, becuase no known subscription", a.Sym)
+					logrus.
+						WithError(err).
+						WithField("stock", a[0].Sym).
+						Panic("could not feather aggregate because no known subscription")
 				}
 				p.lock.RUnlock()
 			}
@@ -133,10 +148,17 @@ func (p *Polygon) SubscribeTicker(symbol string) chan Aggregate {
 	p.subscribeMap[symbol] = channel
 	p.lock.Unlock()
 
-	subscribe, _ := json.Marshal(Action{
+	subscribe, err := json.Marshal(Action{
 		Action: "subscribe",
 		Params: fmt.Sprintf("AM.%s", symbol),
 	})
+
+	if err != nil {
+		logrus.
+			WithError(err).
+			WithField("stock", symbol).
+			Panic("could not marshal subscription")
+	}
 
 	p.outbox <- subscribe
 
@@ -151,18 +173,27 @@ func GetMarketCap(symbol string) float64 {
 			viper.GetString("polygon.key")))
 
 	if err != nil {
-		log.Panicf("could not gather financials for %s from polygon due to %s", symbol, err)
+		logrus.
+			WithError(err).
+			WithField("stock", symbol).
+			Panic("could not gather financials from polygon")
 	}
 
 	data, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		log.Panicf("could not read binary stream financials for %s from polygon due to %s", symbol, err)
+		logrus.
+			WithError(err).
+			WithField("stock", symbol).
+			Panic("could not read binary stream of financials")
 	}
 
 	var financials Financials
 	err = json.Unmarshal(data, &financials)
 	if err != nil {
-		log.Panicf("could not unmarshall financials for %s from polygon due to %s", symbol, err)
+		logrus.
+			WithError(err).
+			WithField("stock", symbol).
+			Panic("could not unmarshall financials")
 	}
 
 	if len(financials.Results) < 1 {

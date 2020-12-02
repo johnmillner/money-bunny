@@ -1,6 +1,6 @@
 module github.com/johnmillner/money-bunny
 
-go 1.14
+go 1.15
 
 require (
 	github.com/alpacahq/alpaca-trade-api-go v1.6.2
@@ -10,6 +10,7 @@ require (
 	github.com/magiconair/properties v1.8.4
 	github.com/markcheno/go-talib v0.0.0-20190307022042-cd53a9264d70
 	github.com/shopspring/decimal v1.2.0
+	github.com/sirupsen/logrus v1.2.0
 	github.com/spf13/viper v1.7.1
 
 )

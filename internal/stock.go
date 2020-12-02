@@ -6,9 +6,10 @@ import (
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/components"
 	"github.com/go-echarts/go-echarts/v2/opts"
+	"github.com/johnmillner/money-bunny/io"
 	"github.com/markcheno/go-talib"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
-	"log"
 	"os"
 	"time"
 )
@@ -61,11 +62,11 @@ func NewStock(symbol string, bar []alpaca.Bar) *Stock {
 	}
 }
 
-func (s *Stock) Update(aggregate Aggregate) *Stock {
-	s.Price.Push(aggregate.C)
-	s.Low.Push(aggregate.L)
-	s.High.Push(aggregate.H)
-	s.Vol.Push(aggregate.V)
+func (s *Stock) Update(aggregate io.Aggregate) *Stock {
+	s.Price = s.Price.Push(aggregate.C)
+	s.Low = s.Low.Push(aggregate.L)
+	s.High = s.High.Push(aggregate.H)
+	s.Vol = s.Vol.Push(aggregate.V)
 
 	prices := s.Price.Raster()
 
@@ -110,133 +111,20 @@ func getTrends(price []float64) ([]float64, []float64, []float64) {
 	return trend, trendVelocity, trendAcceleration
 }
 
-func (s *Stock) IsBuyingMacdCrossOver() bool {
-	macdStart := s.Macd[len(s.Macd)-2]
-	macdEnd := s.Macd[len(s.Macd)-1]
-	signalStart := s.Signal[len(s.Signal)-2]
-	signalEnd := s.Signal[len(s.Signal)-1]
-
-	ok, intersection := findIntersection(
-		point{
-			x: 1,
-			y: macdEnd,
-		},
-		point{
-			x: 0,
-			y: macdStart,
-		},
-		point{
-			x: 1,
-			y: signalEnd,
-		},
-		point{
-			x: 0,
-			y: signalStart,
-		})
-
-	return ok &&
-		intersection.x >= 0 && // ensure cross over happened in the last sample
-		intersection.x <= 1 && // ^
-		macdEnd > macdStart && // ensure it is a positive cross over event
-		intersection.y < 0 // ensure that the crossover happened in negative space
-}
-
-func (s *Stock) IsSellingMacdCrossUnder() bool {
-	macdStart := s.Macd[len(s.Macd)-2]
-	macdEnd := s.Macd[len(s.Macd)-1]
-	signalStart := s.Signal[len(s.Signal)-2]
-	signalEnd := s.Signal[len(s.Signal)-1]
-
-	ok, intersection := findIntersection(
-		point{
-			x: 1,
-			y: macdEnd,
-		},
-		point{
-			x: 0,
-			y: macdStart,
-		},
-		point{
-			x: 1,
-			y: signalEnd,
-		},
-		point{
-			x: 0,
-			y: signalStart,
-		})
-
-	return ok &&
-		intersection.x >= 0 && // ensure cross over happened in the last sample
-		intersection.x <= 1 && // ^
-		macdEnd < macdStart && // ensure it is a negative cross over event
-		intersection.y > 0 // ensure that the crossover happened in positive space
-}
-
-type point struct {
-	x, y float64
-}
-
-func findIntersection(a, b, c, d point) (bool, point) {
-	a1 := b.y - a.y
-	b1 := a.x - b.x
-	c1 := a1*(a.x) + b1*(a.y)
-
-	a2 := d.y - c.y
-	b2 := c.x - d.x
-	c2 := a2*(c.x) + b2*(c.y)
-
-	determinant := a1*b2 - a2*b1
-
-	if determinant == 0 {
-		return false, point{}
-	}
-
-	return true, point{
-		x: (b2*c1 - b1*c2) / determinant,
-		y: (a1*c2 - a2*c1) / determinant,
-	}
-}
-
-func (s *Stock) IsReadyToBuy() bool {
-	return s.IsBelowTrend() && s.IsUpwardsTrend() && s.IsBuyingMacdCrossOver()
-}
-
-func (s *Stock) IsReadyToSell() bool {
-	return !s.IsBelowTrend() && s.IsDownwardsTrend() && s.IsSellingMacdCrossUnder()
-}
-
-func (s *Stock) IsBelowTrend() bool {
-	return s.Price.Peek() < s.Trend[len(s.Trend)-1]
-}
-
-func (s *Stock) IsUpwardsTrend() bool {
-	return s.Vel[len(s.Vel)-1] > 0 || s.Acc[len(s.Acc)-1] > 0
-}
-
-func (s *Stock) IsDownwardsTrend() bool {
-	return s.Vel[len(s.Vel)-1] < 0 || s.Acc[len(s.Acc)-1] < 0
-}
-
 func (s Stock) LogSnapshot(action string, price, qty, takeProfit, stopLoss float64) {
 	s.CreateGraph()
 
-	log.Printf("%s %s:\n\t"+
-		"total:\t\t%f\n\t"+
-		"qty:\t\t%f\n\t"+
-		"maxProfit:\t%f\n\t"+
-		"maxLoss:\t%v\n\t"+
-		"price:\t\t%f\n\t"+
-		"takeProfit:\t%f\n\t"+
-		"stopLoss:\t%f",
-		action,
-		s.Symbol,
-		price*qty,
-		qty,
-		(takeProfit-price)*qty,
-		(price-stopLoss)*qty,
-		price,
-		takeProfit,
-		stopLoss)
+	logrus.
+		WithField("stock", s.Symbol).
+		WithField("action", action).
+		WithField("total", price*qty).
+		WithField("qty", qty).
+		WithField("maxProfit", (takeProfit-price)*qty).
+		WithField("maxLoss", (price-stopLoss)*qty).
+		WithField("price", price).
+		WithField("takeProfit", takeProfit).
+		WithField("stopLoss", stopLoss).
+		Info()
 }
 
 func (s *Stock) CreateGraph() {

@@ -33,7 +33,7 @@ func main() {
 		out := closes.Add(-1 * time.Duration(viper.GetInt("close-before-close-min")) * time.Minute)
 
 		if time.Now().Before(in) {
-			logrus.Warnf("market has not opened for today yet, waiting until %s", in.String())
+			logrus.Infof("market has not opened for today yet, waiting until %s", in.String())
 			time.Sleep(in.Sub(time.Now()))
 		}
 

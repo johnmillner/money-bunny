@@ -137,7 +137,7 @@ func (o *Overseer) Manage(stock *Stock) {
 			if ok, minRisk, risk := FilterByRiskGoal(o.calculateBudget(), price, stopLoss, qty); !ok {
 				logrus.
 					WithField("stock", stock.Symbol).
-					Debugf("risk not good enough, wanted minimum risk of %f but only has %f", o.calculateBudget(), minRisk, risk)
+					Debugf("risk not good enough, wanted minimum risk of %f but only has %f", minRisk, risk)
 				continue
 			}
 

@@ -70,10 +70,11 @@ func FilterByRiskGoal(budget, price, stopLoss, qty float64) (bool, float64, floa
 
 func FilterByVolume(stock *Stock, qty float64) bool {
 	totalVol := float64(0)
-	for _, vol := range stock.Vol.Raster() {
-		totalVol += vol
+	for _, snapshot := range stock.Snapshots.Get() {
+		totalVol += snapshot.Vol
 	}
-	avgVol := totalVol / float64(stock.Vol.Capacity)
+
+	avgVol := totalVol / float64(stock.Snapshots.capacity)
 
 	return avgVol*viper.GetFloat64("min-average-vol-multiple") > qty
 }
@@ -174,7 +175,7 @@ func findIntersection(a, b, c, d point) (bool, point) {
 }
 
 func IsBelowTrend(s *Stock) bool {
-	return s.Price.Peek() < s.Trend[len(s.Trend)-1]
+	return s.Snapshots.Get()[s.Snapshots.capacity-1].Price < s.Trend[len(s.Trend)-1]
 }
 
 func IsUpwardsTrend(s *Stock) bool {

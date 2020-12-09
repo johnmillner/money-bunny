@@ -34,7 +34,7 @@ func InitOverseer(a *io.Alpaca, p *io.Polygon, out time.Time) *Overseer {
 					WithField("account", o.Account).
 					WithField("positions", o.Positions).
 					WithField("orders", o.Orders).
-					Debug("current status")
+					Trace("current status")
 
 				// check old orders
 				for _, order := range o.Orders {
@@ -54,7 +54,7 @@ func InitOverseer(a *io.Alpaca, p *io.Polygon, out time.Time) *Overseer {
 			for _, position := range o.Positions {
 				logrus.
 					WithField("stock", position.Symbol).
-					Info("liquidating since it's close to market close %v", out)
+					Infof("liquidating since it's close to market close %v", out)
 				o.liquidate(position.Symbol)
 			}
 		}
@@ -124,13 +124,21 @@ func (o *Overseer) Manage(stock *Stock) {
 			if qty < 1 {
 				logrus.
 					WithField("stock", stock.Symbol).
-					Debug("skipping due since insufficient capital")
+					Debug("skipping due to insufficient capital")
+				continue
+			}
+			// check that the last snapshot is from within the minute
+			if time.Now().Sub(stock.Snapshots.Get()[len(stock.Snapshots.Get())-1].timestamp) > time.Minute {
+				logrus.
+					WithField("stock", stock.Symbol).
+					Debugf("skipping due to old data, most recent data was %v",
+						stock.Snapshots.Get()[len(stock.Snapshots.Get())-1].timestamp)
 				continue
 			}
 			if !FilterByVolume(stock, qty) {
 				logrus.
 					WithField("stock", stock.Symbol).
-					Debug("skipping due since insufficient volume")
+					Debug("skipping due to insufficient volume")
 				continue
 			}
 			// if maxLoss is less than budget*risk*percentage

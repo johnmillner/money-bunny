@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Financials struct {
@@ -27,8 +28,9 @@ type Status struct {
 }
 
 type Aggregate struct {
-	Ev, Sym                            string
-	V, Av, Op, Vw, O, C, H, L, A, S, E float64
+	Ev, Sym                      string
+	V, Av, Op, Vw, O, C, H, L, A float64
+	S, E                         time.Time
 }
 
 type Quote struct {
@@ -124,16 +126,18 @@ func InitPolygon() *Polygon {
 					continue
 				}
 
-				p.lock.RLock()
-				if channel, ok := p.subscribeMap[a[0].Sym]; ok {
-					channel <- a[0]
-				} else {
-					logrus.
-						WithError(err).
-						WithField("stock", a[0].Sym).
-						Panic("could not feather aggregate because no known subscription")
+				for _, aggregate := range a {
+					p.lock.RLock()
+					if channel, ok := p.subscribeMap[aggregate.Sym]; ok {
+						channel <- aggregate
+					} else {
+						logrus.
+							WithError(err).
+							WithField("stock", aggregate.Sym).
+							Panic("could not feather aggregate because no known subscription")
+					}
+					p.lock.RUnlock()
 				}
-				p.lock.RUnlock()
 			}
 		}
 	}()

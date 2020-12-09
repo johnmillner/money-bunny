@@ -61,7 +61,7 @@ liquidate-after-min: 30
 
 # number of minutes to wait after market open before beginning to trade
 # scenario: there is often large market volatility and Unreliable data during market opens that shouldn't be traded on
-trade-after-open-min: 10
+trade-after-open-min: 0
 
 # number of minutes before the market closes to stop making trades, and liquidate active positions
 #   all positions should close before market close to avoid margin calls
@@ -89,7 +89,7 @@ polygon:
   key: ""
 
 # sets logging level - can be set to trace, debug, info, warn, or error - default info
-log-level: "info"
+log-level: "debug"
 
 # sets logging format to json if true - default false
 log-json: "true"

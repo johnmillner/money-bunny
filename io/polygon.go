@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 )
 
 type Financials struct {
@@ -30,7 +29,7 @@ type Status struct {
 type Aggregate struct {
 	Ev, Sym                      string
 	V, Av, Op, Vw, O, C, H, L, A float64
-	S, E                         time.Time
+	S, E                         int64
 }
 
 type Quote struct {

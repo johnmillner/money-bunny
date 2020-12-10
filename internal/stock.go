@@ -15,9 +15,9 @@ import (
 )
 
 type Stock struct {
-	Symbol                             string
-	Snapshots                          *ouroboros
-	Macd, Signal, Trend, Vel, Acc, Atr []float64
+	Symbol                   string
+	Snapshots                *ouroboros
+	Macd, Signal, Trend, Atr []float64
 }
 
 type Snapshot struct {
@@ -38,7 +38,7 @@ func NewStock(symbol string, bar []alpaca.Bar) *Stock {
 		})
 	}
 
-	macd, signal, trend, vel, acc, atr := getIndicators(snapshots.Get())
+	macd, signal, trend, atr := getIndicators(snapshots.Get())
 
 	return &Stock{
 		Symbol:    symbol,
@@ -46,8 +46,6 @@ func NewStock(symbol string, bar []alpaca.Bar) *Stock {
 		Macd:      macd,
 		Signal:    signal,
 		Trend:     trend,
-		Vel:       vel,
-		Acc:       acc,
 		Atr:       atr,
 	}
 }
@@ -58,16 +56,15 @@ func (s *Stock) Update(aggregate io.Aggregate) *Stock {
 		High:      aggregate.H,
 		Low:       aggregate.L,
 		Vol:       aggregate.V,
-		timestamp: aggregate.E,
+		timestamp: time.Unix(aggregate.E, 0),
 	})
 
-	s.Macd, s.Signal, s.Trend, s.Vel, s.Acc, s.Atr = getIndicators(s.Snapshots.Get())
+	s.Macd, s.Signal, s.Trend, s.Atr = getIndicators(s.Snapshots.Get())
 
-	s.LogSnapshot("test", 0, 0, 0, 0)
 	return s
 }
 
-func getPriceAndTime(snapshots []Snapshot) ([]float64, []time.Time) {
+func GetPriceAndTime(snapshots []Snapshot) ([]float64, []time.Time) {
 	closingPrices := make([]float64, len(snapshots))
 	times := make([]time.Time, len(snapshots))
 
@@ -79,7 +76,7 @@ func getPriceAndTime(snapshots []Snapshot) ([]float64, []time.Time) {
 	return closingPrices, times
 }
 
-func getIndicators(snapshots []Snapshot) ([]float64, []float64, []float64, []float64, []float64, []float64) {
+func getIndicators(snapshots []Snapshot) ([]float64, []float64, []float64, []float64) {
 	closingPrices := make([]float64, len(snapshots))
 	lowPrices := make([]float64, len(snapshots))
 	highPrices := make([]float64, len(snapshots))
@@ -98,7 +95,7 @@ func getIndicators(snapshots []Snapshot) ([]float64, []float64, []float64, []flo
 		viper.GetInt("macd.slow"),
 		viper.GetInt("macd.signal"))
 
-	trend, vel, acc := getTrends(closingPrices)
+	trend := talib.Ema(closingPrices, viper.GetInt("trend"))
 
 	atr := talib.Atr(
 		highPrices,
@@ -106,31 +103,7 @@ func getIndicators(snapshots []Snapshot) ([]float64, []float64, []float64, []flo
 		closingPrices,
 		viper.GetInt("atr"))
 
-	return macd, signal, trend, vel, acc, atr
-}
-
-func getTrends(price []float64) ([]float64, []float64, []float64) {
-	trend := talib.Ema(price, viper.GetInt("trend"))
-
-	trendVelocity := make([]float64, len(trend))
-	for i := range trend {
-		if i == 0 || trend[i-1] == 0 {
-			continue
-		}
-		trendVelocity[i] = trend[i] - trend[i-1]
-	}
-	trendVelocity = trendVelocity[1:]
-
-	trendAcceleration := make([]float64, len(trendVelocity))
-	for i := range trendVelocity {
-		if i == 0 || trendVelocity[i-1] == 0 {
-			continue
-		}
-		trendAcceleration[i] = trendVelocity[i] - trendVelocity[i-1]
-	}
-	trendAcceleration = trendAcceleration[1:]
-
-	return trend, trendVelocity, trendAcceleration
+	return macd, signal, trend, atr
 }
 
 func (s Stock) LogSnapshot(action string, price, qty, takeProfit, stopLoss float64) {
@@ -156,7 +129,6 @@ func (s *Stock) CreateGraph() {
 	// create a new line instance
 	prices := charts.NewLine()
 	macds := charts.NewLine()
-	trends := charts.NewLine()
 	atrs := charts.NewLine()
 
 	yAxisOpts := charts.WithYAxisOpts(opts.YAxis{
@@ -185,11 +157,6 @@ func (s *Stock) CreateGraph() {
 		Subtitle: "minutes",
 	}), yAxisOpts, toolTipOpts, zoomOpts, initOpts)
 
-	trends.SetGlobalOptions(charts.WithTitleOpts(opts.Title{
-		Title:    "Trend Velocity and Acceleration",
-		Subtitle: "minutes",
-	}), yAxisOpts, toolTipOpts, zoomOpts, initOpts)
-
 	atrs.SetGlobalOptions(charts.WithTitleOpts(opts.Title{
 		Title:    "Average True Range",
 		Subtitle: "minutes",
@@ -203,10 +170,9 @@ func (s *Stock) CreateGraph() {
 
 	prices.SetXAxis(xAxis)
 	macds.SetXAxis(xAxis)
-	trends.SetXAxis(xAxis)
 	atrs.SetXAxis(xAxis)
 
-	price, _ := getPriceAndTime(s.Snapshots.Get())
+	price, _ := GetPriceAndTime(s.Snapshots.Get())
 
 	// Put data into instance
 	prices.AddSeries("Price", convertToItems(price[len(price)-1-lookback:]))
@@ -215,13 +181,10 @@ func (s *Stock) CreateGraph() {
 	macds.AddSeries("Macd", convertToItems(s.Macd[len(s.Macd)-1-lookback:]))
 	macds.AddSeries("Signal", convertToItems(s.Signal[len(s.Signal)-1-lookback:]))
 
-	trends.AddSeries("Trend Velocity", convertToItems(s.Vel[len(s.Vel)-1-lookback:]))
-	trends.AddSeries("Trend Acceleration", convertToItems(s.Acc[len(s.Acc)-1-lookback:]))
-
 	atrs.AddSeries("ATR", convertToItems(s.Atr[len(s.Atr)-1-lookback:]))
 
 	page := components.NewPage()
-	page.AddCharts(prices, trends, macds, atrs)
+	page.AddCharts(prices, macds, atrs)
 	page.AddCustomizedCSSAssets("graph.css")
 	page.PageTitle = s.Symbol
 

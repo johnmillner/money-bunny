@@ -80,11 +80,28 @@ func FilterByVolume(stock *Stock, qty float64) bool {
 }
 
 func FilterByMacdEntry(s *Stock) bool {
-	return IsBelowTrend(s) && IsUpwardsTrend(s) && IsBuyingMacdCrossOver(s)
+	return IsBelowTrend(s) && IsBuyingMacdCrossOver(s)
 }
 
 func FilterByMacdExit(s *Stock) bool {
-	return !IsBelowTrend(s) && IsDownwardsTrend(s) && IsSellingMacdCrossUnder(s)
+	return !IsBelowTrend(s) && IsSellingMacdCrossUnder(s)
+}
+
+func FilterByConsistentData(s *Stock) bool {
+	_, times := GetPriceAndTime(s.Snapshots.Get())
+
+	y, m, d := time.Now().Date()
+	now := time.Date(y, m, d, time.Now().Hour(), time.Now().Minute(), 0, 0, time.Local)
+
+	// confirm that the past useful data does not have any gaps
+	times = times[len(times)-viper.GetInt("macd.slow"):]
+	for i := 0; i < len(times); i++ {
+		if times[len(times)-1-i].Equal(now.Add(time.Duration(i) * time.Minute)) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func IsBuyingMacdCrossOver(s *Stock) bool {
@@ -176,12 +193,4 @@ func findIntersection(a, b, c, d point) (bool, point) {
 
 func IsBelowTrend(s *Stock) bool {
 	return s.Snapshots.Get()[s.Snapshots.capacity-1].Price < s.Trend[len(s.Trend)-1]
-}
-
-func IsUpwardsTrend(s *Stock) bool {
-	return s.Vel[len(s.Vel)-1] > 0 || s.Acc[len(s.Acc)-1] > 0
-}
-
-func IsDownwardsTrend(s *Stock) bool {
-	return s.Vel[len(s.Vel)-1] < 0 || s.Acc[len(s.Acc)-1] < 0
 }

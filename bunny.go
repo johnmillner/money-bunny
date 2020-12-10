@@ -52,6 +52,7 @@ func main() {
 
 		logrus.Debugf("examining %d stocks", len(symbols))
 		stocks := GetStocks(a, symbols...)
+		logrus.Infof("following %d stocks", len(stocks))
 		for _, stock := range stocks {
 			go overseer.Manage(stock)
 		}
@@ -108,10 +109,6 @@ func GetStocks(a *io.Alpaca, symbols ...string) []*internal.Stock {
 
 			for symbol, bar := range bars {
 				if len(bar) < limit {
-					continue
-				}
-
-				if time.Now().Sub(bar[len(bar)-1].GetTime()) > 2*time.Minute {
 					continue
 				}
 

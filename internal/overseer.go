@@ -3,6 +3,7 @@ package internal
 import (
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 	"github.com/johnmillner/money-bunny/io"
+	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"math"
@@ -43,7 +44,7 @@ func InitOverseer(a *io.Alpaca, p *io.Polygon, out time.Time) *Overseer {
 							WithField("stock", order.Symbol).
 							WithField("submitted", order.SubmittedAt).
 							Info("liquidating since it was too old submitted")
-						o.liquidate(order.Symbol)
+						o.softLiquidate(order.Symbol)
 					}
 				}
 			}()
@@ -55,7 +56,7 @@ func InitOverseer(a *io.Alpaca, p *io.Polygon, out time.Time) *Overseer {
 				logrus.
 					WithField("stock", position.Symbol).
 					Infof("liquidating since it's close to market close %v", out)
-				o.liquidate(position.Symbol)
+				o.softLiquidate(position.Symbol)
 			}
 		}
 	}()
@@ -63,7 +64,9 @@ func InitOverseer(a *io.Alpaca, p *io.Polygon, out time.Time) *Overseer {
 	return o
 }
 
-func (o *Overseer) liquidate(symbol string) {
+func (o *Overseer) cancelOrdersFor(symbol string) bool {
+	triedSoftly := false
+
 	for _, order := range o.Orders {
 		if order.Symbol == symbol {
 			err := o.a.Client.CancelOrder(order.ID)
@@ -74,8 +77,16 @@ func (o *Overseer) liquidate(symbol string) {
 					WithError(err).
 					Panic("could not cancel old order")
 			}
+
+			triedSoftly = triedSoftly || order.Class == "oco"
 		}
 	}
+
+	return triedSoftly
+}
+
+func (o *Overseer) liquidate(symbol string) {
+	_ = o.cancelOrdersFor(symbol)
 
 	for _, position := range o.Positions {
 		if position.Symbol == symbol {
@@ -87,6 +98,59 @@ func (o *Overseer) liquidate(symbol string) {
 					WithError(err).
 					Error("could not liquidate old position for")
 			}
+		}
+	}
+}
+
+func (o *Overseer) softLiquidate(symbol string) {
+	triedSoftly := o.cancelOrdersFor(symbol)
+
+	if triedSoftly {
+		logrus.
+			WithField("stock", symbol).
+			Warn("attempted to softly liquidate - now hard liquidating")
+		o.liquidate(symbol)
+		return
+	}
+
+	for _, position := range o.Positions {
+		if position.Symbol == symbol {
+			limit := position.CurrentPrice.Sub(position.CurrentPrice.Mul(decimal.NewFromFloat(0.02)))
+
+			if position.CurrentPrice.Sub(limit).LessThan(decimal.NewFromFloat(0.01)) {
+				limit = position.CurrentPrice.Sub(decimal.NewFromFloat(0.01))
+			}
+
+			_, err := o.a.Client.PlaceOrder(alpaca.PlaceOrderRequest{
+				Qty:         position.Qty,
+				Side:        "sell",
+				Type:        "limit",
+				TimeInForce: "gtc",
+				OrderClass:  "oco",
+				StopLoss: &alpaca.StopLoss{
+					LimitPrice: &limit,
+					StopPrice:  &position.CurrentPrice,
+				},
+			})
+
+			if err != nil {
+				logrus.
+					WithField("stock", symbol).
+					WithError(err).
+					Error("could not liquidate old position for")
+				return
+			}
+
+			if position.CurrentPrice.GreaterThan(position.EntryPrice) {
+				logrus.
+					WithField("stock", symbol).
+					Infof("exiting position with potential profit of %s", position.Qty.Mul(position.CurrentPrice.Sub(position.EntryPrice)).String())
+			} else {
+				logrus.
+					WithField("stock", symbol).
+					Infof("exiting position with potential loss of %s", position.Qty.Mul(limit.Sub(position.EntryPrice)).String())
+			}
+
 		}
 	}
 }
@@ -108,7 +172,7 @@ func (o *Overseer) Manage(stock *Stock) {
 		}
 
 		if holding && FilterByMacdExit(stock) {
-			o.liquidate(stock.Symbol)
+			o.softLiquidate(stock.Symbol)
 
 			price, _ := hPosition.CurrentPrice.Float64()
 			qty, _ := hPosition.Qty.Float64()
@@ -124,15 +188,13 @@ func (o *Overseer) Manage(stock *Stock) {
 			if qty < 1 {
 				logrus.
 					WithField("stock", stock.Symbol).
-					Debug("skipping due to insufficient capital")
+					Trace("skipping due to insufficient capital")
 				continue
 			}
-			// check that the last snapshot is from within the minute
-			if time.Now().Sub(stock.Snapshots.Get()[len(stock.Snapshots.Get())-1].timestamp) > time.Minute {
+			if !FilterByConsistentData(stock) {
 				logrus.
 					WithField("stock", stock.Symbol).
-					Debugf("skipping due to old data, most recent data was %v",
-						stock.Snapshots.Get()[len(stock.Snapshots.Get())-1].timestamp)
+					Debug("skipping due to missing data")
 				continue
 			}
 			if !FilterByVolume(stock, qty) {

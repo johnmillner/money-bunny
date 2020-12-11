@@ -64,30 +64,26 @@ func (s *Stock) Update(aggregate io.Aggregate) *Stock {
 	return s
 }
 
-func GetPriceAndTime(snapshots []Snapshot) ([]float64, []time.Time) {
-	closingPrices := make([]float64, len(snapshots))
-	times := make([]time.Time, len(snapshots))
-
-	for i, snapshot := range snapshots {
-		closingPrices[i] = snapshot.Price
-		times[i] = snapshot.timestamp
-	}
-
-	return closingPrices, times
-}
-
-func getIndicators(snapshots []Snapshot) ([]float64, []float64, []float64, []float64) {
+func GetRawData(snapshots []Snapshot) ([]float64, []float64, []float64, []float64, []time.Time) {
 	closingPrices := make([]float64, len(snapshots))
 	lowPrices := make([]float64, len(snapshots))
 	highPrices := make([]float64, len(snapshots))
 	volume := make([]float64, len(snapshots))
+	times := make([]time.Time, len(snapshots))
 
 	for i, snapshot := range snapshots {
 		closingPrices[i] = snapshot.Price
 		lowPrices[i] = snapshot.Low
 		highPrices[i] = snapshot.High
 		volume[i] = snapshot.Vol
+		times[i] = snapshot.timestamp
 	}
+
+	return closingPrices, lowPrices, highPrices, volume, times
+}
+
+func getIndicators(snapshots []Snapshot) ([]float64, []float64, []float64, []float64) {
+	closingPrices, lowPrices, highPrices, _, _ := GetRawData(snapshots)
 
 	macd, signal, _ := talib.Macd(
 		closingPrices,
@@ -172,7 +168,7 @@ func (s *Stock) CreateGraph() {
 	macds.SetXAxis(xAxis)
 	atrs.SetXAxis(xAxis)
 
-	price, _ := GetPriceAndTime(s.Snapshots.Get())
+	price, _, _, _, _ := GetRawData(s.Snapshots.Get())
 
 	// Put data into instance
 	prices.AddSeries("Price", convertToItems(price[len(price)-1-lookback:]))

@@ -43,6 +43,9 @@ min-market-cap: 300000000
 #   this program best functions when it is not making the market and instead riding the waves
 min-average-vol-multiple: 50
 
+# the minimum price a stock has to be, to be considered eligible to trade
+min-stock-price: 10.00
+
 # MACD is used to determine buying/selling indicators - default periods are 12, 26, 9
 macd:
   fast: 12

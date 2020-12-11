@@ -4,6 +4,7 @@ import (
 	"github.com/johnmillner/money-bunny/io"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
+	"math"
 	"sync"
 	"time"
 )
@@ -62,6 +63,32 @@ func FilterByCap(symbols ...string) []string {
 
 }
 
+func FilterByMinPrice(stocks []*Stock) []*Stock {
+	filters := make([]*Stock, 0)
+	wg := sync.WaitGroup{}
+
+	for _, stock := range stocks {
+		wg.Add(1)
+		go func(stock *Stock) {
+			defer wg.Done()
+
+			_, lowPrices, _, _, _ := GetRawData(stock.Snapshots.Get())
+
+			min := math.MaxFloat64
+			for _, low := range lowPrices {
+				min = math.Min(min, low)
+			}
+
+			if min > viper.GetFloat64("min-stock-price") {
+				filters = append(filters, stock)
+			}
+		}(stock)
+	}
+
+	wg.Wait()
+	return stocks
+}
+
 func FilterByRiskGoal(budget, price, stopLoss, qty float64) (bool, float64, float64) {
 	minRisk := budget * viper.GetFloat64("risk") * (1 - viper.GetFloat64("exposure-tolerance"))
 	risk := (price - stopLoss) * qty
@@ -87,8 +114,8 @@ func FilterByMacdExit(s *Stock) bool {
 	return !IsBelowTrend(s) && IsSellingMacdCrossUnder(s)
 }
 
-func FilterByConsistentData(s *Stock) bool {
-	_, times := GetPriceAndTime(s.Snapshots.Get())
+func FilterByConsistentData(s *Stock) (bool, []time.Time) {
+	_, _, _, _, times := GetRawData(s.Snapshots.Get())
 
 	y, m, d := time.Now().Date()
 	now := time.Date(y, m, d, time.Now().Hour(), time.Now().Minute(), 0, 0, time.Local)
@@ -97,6 +124,16 @@ func FilterByConsistentData(s *Stock) bool {
 	times = times[len(times)-viper.GetInt("macd.slow"):]
 	for i := 0; i < len(times); i++ {
 		if times[len(times)-1-i].Equal(now.Add(time.Duration(i) * time.Minute)) {
+			return false, times
+		}
+	}
+
+	return true, times
+}
+
+func FilterByNoCrossoversInShort(s *Stock) bool {
+	for i := len(s.Macd) - 1 - viper.GetInt("macd.signal"); i < len(s.Macd)-1; i++ {
+		if ok, _ := findIntersection(s.Macd[i], s.Macd[i+1], s.Signal[i], s.Signal[i+1]); ok {
 			return false
 		}
 	}
@@ -110,23 +147,7 @@ func IsBuyingMacdCrossOver(s *Stock) bool {
 	signalStart := s.Signal[len(s.Signal)-2]
 	signalEnd := s.Signal[len(s.Signal)-1]
 
-	ok, intersection := findIntersection(
-		point{
-			x: 1,
-			y: macdEnd,
-		},
-		point{
-			x: 0,
-			y: macdStart,
-		},
-		point{
-			x: 1,
-			y: signalEnd,
-		},
-		point{
-			x: 0,
-			y: signalStart,
-		})
+	ok, intersection := findIntersection(macdEnd, macdStart, signalEnd, signalStart)
 
 	return ok &&
 		intersection.x >= 0 && // ensure cross over happened in the last sample
@@ -141,23 +162,7 @@ func IsSellingMacdCrossUnder(s *Stock) bool {
 	signalStart := s.Signal[len(s.Signal)-2]
 	signalEnd := s.Signal[len(s.Signal)-1]
 
-	ok, intersection := findIntersection(
-		point{
-			x: 1,
-			y: macdEnd,
-		},
-		point{
-			x: 0,
-			y: macdStart,
-		},
-		point{
-			x: 1,
-			y: signalEnd,
-		},
-		point{
-			x: 0,
-			y: signalStart,
-		})
+	ok, intersection := findIntersection(macdEnd, macdStart, signalEnd, signalStart)
 
 	return ok &&
 		intersection.x >= 0 && // ensure cross over happened in the last sample
@@ -170,7 +175,25 @@ type point struct {
 	x, y float64
 }
 
-func findIntersection(a, b, c, d point) (bool, point) {
+func findIntersection(aEnd, aStart, bEnd, bStart float64) (bool, point) {
+
+	a := point{
+		x: 1,
+		y: aStart,
+	}
+	b := point{
+		x: 0,
+		y: aEnd,
+	}
+	c := point{
+		x: 1,
+		y: bEnd,
+	}
+	d := point{
+		x: 0,
+		y: bStart,
+	}
+
 	a1 := b.y - a.y
 	b1 := a.x - b.x
 	c1 := a1*(a.x) + b1*(a.y)

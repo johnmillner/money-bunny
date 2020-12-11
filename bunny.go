@@ -47,18 +47,29 @@ func main() {
 
 		// find list of all US, marginable, easy-to-trade stocks
 		symbols := internal.FilterByTradable(a)
+
 		// further filter by ensure at least small-cap and above
 		symbols = internal.FilterByCap(symbols...)
 
 		logrus.Debugf("examining %d stocks", len(symbols))
+
+		// gather initial data and form the indicators for the stocks
 		stocks := GetStocks(a, symbols...)
-		logrus.Infof("following %d stocks", len(stocks))
+
+		// filter by the minimum price over the given historical data
+		stocks = internal.FilterByMinPrice(stocks)
+
 		for _, stock := range stocks {
 			go overseer.Manage(stock)
 		}
 
+		logrus.Infof("overseer now following %d stocks", len(stocks))
+
 		time.Sleep(out.Add(time.Minute).Sub(time.Now()))
 		logrus.Info("market has closed for today, exiting for the day")
+
+		p.Exit()
+		a.Exit()
 	})
 }
 

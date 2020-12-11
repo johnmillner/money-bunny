@@ -54,7 +54,8 @@ func (a Alpaca) GetMarketTime() (bool, time.Time, time.Time) {
 	return today == times[0].Date, marketOpen, marketClose
 }
 
-func (a Alpaca) OrderBracket(symbol string, qty, takeProfit, stopLoss, stopLimit float64) {
+func (a Alpaca) OrderBracket(symbol string, qty, price, takeProfit, stopLoss, stopLimit float64) {
+	pp := decimal.NewFromFloat(price)
 	tp := decimal.NewFromFloat(takeProfit)
 	sl := decimal.NewFromFloat(stopLoss)
 	st := decimal.NewFromFloat(stopLimit)
@@ -63,10 +64,11 @@ func (a Alpaca) OrderBracket(symbol string, qty, takeProfit, stopLoss, stopLimit
 		alpaca.PlaceOrderRequest{
 			AssetKey:    &symbol,
 			Qty:         decimal.NewFromFloat(qty),
-			Side:        "buy",
-			Type:        "market",
-			TimeInForce: "day",
-			OrderClass:  "bracket",
+			Side:        alpaca.Buy,
+			Type:        alpaca.Limit,
+			TimeInForce: alpaca.Day,
+			LimitPrice:  &pp,
+			OrderClass:  alpaca.Bracket,
 			TakeProfit: &alpaca.TakeProfit{
 				LimitPrice: &tp,
 			},
@@ -80,7 +82,27 @@ func (a Alpaca) OrderBracket(symbol string, qty, takeProfit, stopLoss, stopLimit
 		logrus.
 			WithError(err).
 			WithField("stock", symbol).
-			Error("could not complete order")
+			Error("could not complete  order")
+	}
+}
+
+func (a Alpaca) OrderLimit(symbol string, qty, limit decimal.Decimal) {
+
+	_, err := a.Client.PlaceOrder(alpaca.PlaceOrderRequest{
+		AssetKey:    &symbol,
+		Qty:         qty,
+		Side:        alpaca.Sell,
+		Type:        alpaca.Limit,
+		TimeInForce: alpaca.Day,
+		LimitPrice:  &limit,
+		OrderClass:  alpaca.Simple,
+	})
+
+	if err != nil {
+		logrus.
+			WithError(err).
+			WithField("stock", symbol).
+			Error("could not complete limit sell order")
 	}
 }
 
@@ -132,4 +154,20 @@ func (a *Alpaca) GetAccount() alpaca.Account {
 	}
 
 	return *account
+}
+
+func (a *Alpaca) Exit() {
+	err := a.Client.CancelAllOrders()
+	if err != nil {
+		logrus.
+			WithError(err).
+			Error("could not cancel all orders in alpaca")
+	}
+
+	err = a.Client.CloseAllPositions()
+	if err != nil {
+		logrus.
+			WithError(err).
+			Error("could not close all positions in alpaca")
+	}
 }

@@ -69,6 +69,10 @@ func (o *Overseer) cancelOrdersFor(symbol string) bool {
 
 	for _, order := range o.Orders {
 		if order.Symbol == symbol {
+			logrus.
+				WithField("order", order).
+				Debug("attempting to cancel order")
+
 			err := o.a.Client.CancelOrder(order.ID)
 
 			if err != nil {
@@ -78,7 +82,7 @@ func (o *Overseer) cancelOrdersFor(symbol string) bool {
 					Panic("could not cancel old order")
 			}
 
-			triedSoftly = triedSoftly || order.Class == "oco"
+			triedSoftly = triedSoftly || order.Class == string(alpaca.Simple)
 		}
 	}
 
@@ -121,25 +125,7 @@ func (o *Overseer) softLiquidate(symbol string) {
 				limit = position.CurrentPrice.Sub(decimal.NewFromFloat(0.01))
 			}
 
-			_, err := o.a.Client.PlaceOrder(alpaca.PlaceOrderRequest{
-				Qty:         position.Qty,
-				Side:        "sell",
-				Type:        "limit",
-				TimeInForce: "gtc",
-				OrderClass:  "oco",
-				StopLoss: &alpaca.StopLoss{
-					LimitPrice: &limit,
-					StopPrice:  &position.CurrentPrice,
-				},
-			})
-
-			if err != nil {
-				logrus.
-					WithField("stock", symbol).
-					WithError(err).
-					Error("could not liquidate old position for")
-				return
-			}
+			o.a.OrderLimit(position.Symbol, position.Qty, limit)
 
 			if position.CurrentPrice.GreaterThan(position.EntryPrice) {
 				logrus.
@@ -182,7 +168,8 @@ func (o *Overseer) Manage(stock *Stock) {
 		}
 
 		if !holding && FilterByMacdEntry(stock) {
-			price, qty, takeProfit, stopLoss, stopLimit := o.getOrderParameters(stock)
+			quote := o.a.GetQuote(stock.Symbol)
+			price, qty, takeProfit, stopLoss, stopLimit := o.getOrderParameters(stock, quote)
 
 			// check that quantity is above zero, there is sufficient volume for the trade, and the risk/reward is favorable
 			if qty < 1 {
@@ -191,9 +178,16 @@ func (o *Overseer) Manage(stock *Stock) {
 					Trace("skipping due to insufficient capital")
 				continue
 			}
-			if !FilterByConsistentData(stock) {
+			if FilterByNoCrossoversInShort(stock) {
 				logrus.
 					WithField("stock", stock.Symbol).
+					Debug("skipping due to recent macd crossovers")
+				continue
+			}
+			if ok, times := FilterByConsistentData(stock); !ok {
+				logrus.
+					WithField("stock", stock.Symbol).
+					WithField("times", times).
 					Debug("skipping due to missing data")
 				continue
 			}
@@ -207,20 +201,19 @@ func (o *Overseer) Manage(stock *Stock) {
 			if ok, minRisk, risk := FilterByRiskGoal(o.calculateBudget(), price, stopLoss, qty); !ok {
 				logrus.
 					WithField("stock", stock.Symbol).
-					Debugf("risk not good enough, wanted minimum risk of %f but only has %f", minRisk, risk)
+					Tracef("risk not good enough, wanted minimum risk of %f but only has %f", minRisk, risk)
 				continue
 			}
 
-			o.a.OrderBracket(stock.Symbol, qty, takeProfit, stopLoss, stopLimit)
+			o.a.OrderBracket(stock.Symbol, qty, price, takeProfit, stopLoss, stopLimit)
 			go stock.LogSnapshot("buying", price, qty, takeProfit, stopLoss)
 		}
 	}
 }
 
-func (o *Overseer) getOrderParameters(s *Stock) (float64, float64, float64, float64, float64) {
+func (o *Overseer) getOrderParameters(s *Stock, quote *alpaca.LastQuoteResponse) (float64, float64, float64, float64, float64) {
 	budget := o.calculateBudget()
 
-	quote := o.a.GetQuote(s.Symbol)
 	exposure := budget * viper.GetFloat64("risk")
 	price := float64(quote.Last.AskPrice - (quote.Last.AskPrice-quote.Last.BidPrice)/2)
 
@@ -231,6 +224,16 @@ func (o *Overseer) getOrderParameters(s *Stock) (float64, float64, float64, floa
 	takeProfit := price + (rewardToRisk * tradeRisk)
 	stopLoss := price - tradeRisk
 	stopLimit := price - (1+stopLossMax)*tradeRisk
+
+	if takeProfit-price < 0.02 {
+		takeProfit = price + 0.02
+	}
+	if price-stopLoss < 0.02 {
+		stopLoss = price - 0.02
+	}
+	if stopLoss-stopLimit < 0.02 {
+		stopLimit = stopLoss - 0.02
+	}
 
 	qty := math.Round(exposure / tradeRisk)
 

@@ -144,6 +144,25 @@ func InitPolygon() *Polygon {
 	return p
 }
 
+func (p *Polygon) Exit() {
+	err := p.c.Close()
+	if err != nil {
+		logrus.
+			WithError(err).
+			Error("couldn't gracefully close polygon's websocket")
+	}
+
+	close(p.inbox)
+	close(p.outbox)
+	close(p.Statuses)
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	for _, aggregate := range p.subscribeMap {
+		close(aggregate)
+	}
+
+}
+
 func (p *Polygon) SubscribeTicker(symbol string) chan Aggregate {
 	channel := make(chan Aggregate, 1000)
 

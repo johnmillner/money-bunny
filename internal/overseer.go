@@ -163,51 +163,56 @@ func (o *Overseer) Manage(stock *Stock) {
 			price, _ := hPosition.CurrentPrice.Float64()
 			qty, _ := hPosition.Qty.Float64()
 			go stock.LogSnapshot("selling", price, qty, 0, 0)
-
-			holding = false
+			continue
 		}
 
-		if !holding && FilterByMacdEntry(stock) {
-			quote := o.a.GetQuote(stock.Symbol)
-			price, qty, takeProfit, stopLoss, stopLimit := o.getOrderParameters(stock, quote)
-
-			// check that quantity is above zero, there is sufficient volume for the trade, and the risk/reward is favorable
-			if qty < 1 {
-				logrus.
-					WithField("stock", stock.Symbol).
-					Trace("skipping due to insufficient capital")
-				continue
-			}
-			if FilterByNoCrossoversInShort(stock) {
-				logrus.
-					WithField("stock", stock.Symbol).
-					Debug("skipping due to recent macd crossovers")
-				continue
-			}
-			if ok, times := FilterByConsistentData(stock); !ok {
-				logrus.
-					WithField("stock", stock.Symbol).
-					WithField("times", times).
-					Debug("skipping due to missing data")
-				continue
-			}
-			if !FilterByVolume(stock, qty) {
-				logrus.
-					WithField("stock", stock.Symbol).
-					Debug("skipping due to insufficient volume")
-				continue
-			}
-			// if maxLoss is less than budget*risk*percentage
-			if ok, minRisk, risk := FilterByRiskGoal(o.calculateBudget(), price, stopLoss, qty); !ok {
-				logrus.
-					WithField("stock", stock.Symbol).
-					Tracef("risk not good enough, wanted minimum risk of %f but only has %f", minRisk, risk)
-				continue
-			}
-
-			o.a.OrderBracket(stock.Symbol, qty, price, takeProfit, stopLoss, stopLimit)
-			go stock.LogSnapshot("buying", price, qty, takeProfit, stopLoss)
+		if ok, times := FilterByConsistentData(stock); !ok {
+			logrus.
+				WithField("stock", stock.Symbol).
+				WithField("times", times).
+				Debug("skipping due to missing data")
+			continue
 		}
+		if !FilterByMacdEntry(stock) {
+			logrus.
+				WithField("stock", stock.Symbol).
+				Trace("skipping due to no crossover event")
+			continue
+		}
+		if !FilterByNoRecentCrossovers(stock) {
+			logrus.
+				WithField("stock", stock.Symbol).
+				Debug("skipping due to recent macd crossovers")
+			continue
+		}
+
+		quote := o.a.GetQuote(stock.Symbol)
+		price, qty, takeProfit, stopLoss, stopLimit := o.getOrderParameters(stock, quote)
+
+		// check that quantity is above zero, there is sufficient volume for the trade, and the risk/reward is favorable
+		if qty < 1 {
+			logrus.
+				WithField("stock", stock.Symbol).
+				Trace("skipping due to insufficient capital")
+			continue
+		}
+		if !FilterByVolume(stock, qty) {
+			logrus.
+				WithField("stock", stock.Symbol).
+				Debug("skipping due to insufficient volume")
+			continue
+		}
+		// if maxLoss is less than budget*risk*percentage
+		if ok, minRisk, risk := FilterByRiskGoal(o.calculateBudget(), price, stopLoss, qty); !ok {
+			logrus.
+				WithField("stock", stock.Symbol).
+				Tracef("risk not good enough, wanted minimum risk of %f but only has %f", minRisk, risk)
+			continue
+		}
+
+		o.a.OrderBracket(stock.Symbol, qty, price, takeProfit, stopLoss, stopLimit)
+		go stock.LogSnapshot("buying", price, qty, takeProfit, stopLoss)
+
 	}
 }
 

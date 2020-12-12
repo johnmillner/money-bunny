@@ -131,14 +131,14 @@ func FilterByConsistentData(s *Stock) (bool, []time.Time) {
 	return true, times
 }
 
-func FilterByNoCrossoversInShort(s *Stock) bool {
+func FilterByNoRecentCrossovers(s *Stock) bool {
 	for i := len(s.Macd) - 1 - viper.GetInt("macd.signal"); i < len(s.Macd)-1; i++ {
 		if ok, _ := findIntersection(s.Macd[i], s.Macd[i+1], s.Signal[i], s.Signal[i+1]); ok {
-			return false
+			return true
 		}
 	}
 
-	return true
+	return false
 }
 
 func IsBuyingMacdCrossOver(s *Stock) bool {

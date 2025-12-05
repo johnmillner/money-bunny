@@ -10,7 +10,6 @@ require (
 	github.com/magiconair/properties v1.8.4
 	github.com/markcheno/go-talib v0.0.0-20190307022042-cd53a9264d70
 	github.com/shopspring/decimal v1.2.0
-	github.com/sirupsen/logrus v1.2.0
+	github.com/sirupsen/logrus v1.8.3
 	github.com/spf13/viper v1.7.1
-
 )
